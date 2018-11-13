@@ -92,7 +92,7 @@ class LatControl(object):
     cur_time = sec_since_boot()
     self.mpc_updated = False
 
-    enable_enhancements = False
+    enable_enhancements = True
 
     if enable_enhancements:
       ratioFactor = max(0.1, 1. - self.ratioScale * abs(angle_steers / 100.) ** self.ratioExp)
