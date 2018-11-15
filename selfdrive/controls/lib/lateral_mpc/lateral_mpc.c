@@ -15,6 +15,9 @@
 
 ACADOvariables acadoVariables;
 ACADOworkspace acadoWorkspace;
+double srCost;
+double pCost;
+double lCost;
 
 typedef struct {
   double x, y, psi, delta, t;
@@ -33,6 +36,10 @@ void init(double pathCost, double laneCost, double headingCost, double steerRate
   acado_initializeSolver();
   int    i;
   const int STEP_MULTIPLIER = 3;
+
+  srCost = steerRateCost;
+  pCost = pathCost;
+  lCost = laneCost;
 
   /* Initialize the states and controls. */
   for (i = 0; i < NX * (N + 1); ++i)  acadoVariables.x[ i ] = 0.0;
@@ -67,6 +74,23 @@ int run_mpc(state_t * x0, log_t * solution,
              double l_prob, double r_prob, double p_prob, double curvature_factor, double v_ref, double lane_width){
 
   int    i;
+  const int STEP_MULTIPLIER = 3;
+
+  for (i = 0; i < N; i++) {
+    int f = 1;
+    if (i > 4){
+      f = STEP_MULTIPLIER;
+    }
+    acadoVariables.W[25 * i + 0] = pathCost * f * 2 / max(0.2, l_prob + r_prob);
+    acadoVariables.W[25 * i + 6] = laneCost * f; // * l_prob;
+    acadoVariables.W[25 * i + 12] = laneCost * f; // * r_prob;
+    acadoVariables.W[25 * i + 18] = headingCost * f;
+    acadoVariables.W[25 * i + 24] = steerRateCost * f * 2 / max(0.1, l_prob + r_prob);
+  }
+  acadoVariables.WN[0] = pathCost * STEP_MULTIPLIER * 2 / max(0.2, l_prob + r_prob);
+  acadoVariables.WN[5] = laneCost * STEP_MULTIPLIER;
+  acadoVariables.WN[10] = laneCost * STEP_MULTIPLIER;
+  acadoVariables.WN[15] = headingCost * STEP_MULTIPLIER;
 
   for (i = 0; i <= NOD * N; i+= NOD){
     acadoVariables.od[i] = curvature_factor;

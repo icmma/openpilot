@@ -40,9 +40,12 @@ class PathPlanner(object):
                         (1 - self.lane_width_certainty) * speed_lane_width
 
       lane_width_diff = abs(self.lane_width - current_lane_width)
-      lane_r_prob = interp(lane_width_diff, [0.3, 1.0], [1.0, 0.0])
+      lane_prob = interp(lane_width_diff, [0.3, 1.0], [1.0, 0.0])
 
-      r_prob *= lane_r_prob
+      if abs(self.c_poly[3] - r_poly[3]) > abs(self.c_poly[3] - l_poly[3]
+        r_prob *= lane_prob
+      else:
+        l_prob *= lane_prob
 
       self.lead_dist = md.model.lead.dist
       self.lead_prob = md.model.lead.prob
