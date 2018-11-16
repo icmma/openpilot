@@ -43,7 +43,7 @@ class LatControl(object):
 
   def setup_mpc(self, steer_rate_cost):
     self.libmpc = libmpc_py.libmpc
-    self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING * 0.1, steer_rate_cost)
+    self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING, steer_rate_cost)
 
     self.mpc_solution = libmpc_py.ffi.new("log_t *")
     self.cur_state = libmpc_py.ffi.new("state_t *")
@@ -53,6 +53,7 @@ class LatControl(object):
     self.cur_state[0].y = 0.0
     self.cur_state[0].psi = 0.0
     self.cur_state[0].delta = 0.0
+    self.steer_rate_cost = steer_rate_cost
 
     self.last_mpc_ts = 0.0
     self.angle_steers_des = 0.0
@@ -84,6 +85,11 @@ class LatControl(object):
     self.steer_zero_crossing = 0.0
     self.steer_initialized = False
     self.avg_angle_steers = 0.0
+    self.pCost = 0.0
+    self.lCost = 0.0
+    self.rCost = 0.0
+    self.hCost = 0.0
+    self.srCost = 0.0
 
   def reset(self):
     self.pid.reset()
@@ -124,6 +130,12 @@ class LatControl(object):
       self.libmpc.run_mpc(self.cur_state, self.mpc_solution,
                           self.l_poly, self.r_poly, self.p_poly,
                           PL.PP.l_prob, PL.PP.r_prob, PL.PP.p_prob, curvature_factor, v_ego_mpc, PL.PP.lane_width)
+
+      self.pCost = MPC_COST_LAT.PATH #* 0.5 * (PL.PP.l_prob + PL.PP.r_prob)
+      self.lCost = MPC_COST_LAT.LANE #* PL.PP.l_prob
+      self.rCost = MPC_COST_LAT.LANE #* PL.PP.r_prob
+      self.hCost = MPC_COST_LAT.HEADING
+      self.srCost = self.steer_rate_cost # * 2 / (0.1 + PL.PP.l_prob + PL.PP.r_prob)
 
       # reset to current steer angle if not active or overriding
       if active:
@@ -189,7 +201,7 @@ class LatControl(object):
         self.angle_rate_count += 1
 
         future_angle_steers = (self.avg_angle_rate * _DT_MPC) + self.starting_angle_steers
-        self.angle_steers_des = int(self.angle_steers_des_mpc * 10.) / 10.
+        self.angle_steers_des = self.angle_steers_des_mpc
       
       elif True == False:
         dt = min(cur_time - self.angle_steers_des_time + _DT, _DT_MPC)  # no greater than dt mpc, to prevent overshoot
@@ -232,7 +244,8 @@ class LatControl(object):
           self.center_count = min(1000, self.center_count + 1)
   
         #if (int(cur_time * 100) % 1) == 0:
-        self.steerdata += ("%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (self.isActive, future_angle_steers, angle_rate, self.steer_zero_crossing, self.center_angle, angle_steers, self.angle_steers_des, angle_offset, \
+        self.steerdata += ("%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (self.isActive, \
+        self.pCost, self.lCost, self.rCost, self.hCost, self.srCost, future_angle_steers, angle_rate, self.steer_zero_crossing, self.center_angle, angle_steers, self.angle_steers_des, angle_offset, \
         self.angle_steers_des_mpc, cur_Steer_Ratio, VM.CP.steerKf / ratioFactor, VM.CP.steerKpV[0] / ratioFactor, VM.CP.steerKiV[0] / ratioFactor, VM.CP.steerRateCost, PL.PP.l_prob, \
         PL.PP.r_prob, PL.PP.c_prob, PL.PP.p_prob, self.l_poly[0], self.l_poly[1], self.l_poly[2], self.l_poly[3], self.r_poly[0], self.r_poly[1], self.r_poly[2], self.r_poly[3], \
         self.p_poly[0], self.p_poly[1], self.p_poly[2], self.p_poly[3], PL.PP.c_poly[0], PL.PP.c_poly[1], PL.PP.c_poly[2], PL.PP.c_poly[3], PL.PP.d_poly[0], PL.PP.d_poly[1], \

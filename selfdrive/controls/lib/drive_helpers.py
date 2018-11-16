@@ -12,17 +12,15 @@ V_CRUISE_ENABLE_MIN = 40
 
 class MPC_COST_LAT:
   PATH = 1.0
-  LANE = 30.0
-  HEADING = 999.0
+  LANE = 3.0
+  HEADING = 1.0  #999.0
   STEER_RATE = 1.0
-
 
 class MPC_COST_LONG:
   TTC = 5.0
   DISTANCE = 0.1
   ACCELERATION = 10.0
   JERK = 20.0
-
 
 class EventTypes:
   ENABLE = 'enable'
@@ -34,14 +32,12 @@ class EventTypes:
   IMMEDIATE_DISABLE = 'immediateDisable'
   PERMANENT = 'permanent'
 
-
 def create_event(name, types):
   event = car.CarEvent.new_message()
   event.name = name
   for t in types:
     setattr(event, t, True)
   return event
-
 
 def get_events(events, types):
   out = []
@@ -51,10 +47,8 @@ def get_events(events, types):
         out.append(e.name)
   return out
 
-
 def rate_limit(new_value, last_value, dw_step, up_step):
   return clip(new_value, last_value + dw_step, last_value + up_step)
-
 
 def learn_angle_offset(lateral_control, v_ego, angle_offset, c_poly, c_prob, angle_steers, steer_override):
   # simple integral controller that learns how much steering offset to put to have the car going straight
@@ -74,7 +68,6 @@ def learn_angle_offset(lateral_control, v_ego, angle_offset, c_poly, c_prob, ang
     angle_offset = clip(angle_offset, min_offset, max_offset)
 
   return angle_offset
-
 
 def update_v_cruise(v_cruise_kph, buttonEvents, enabled):
   # handle button presses. TODO: this should be in state_control, but a decelCruise press
@@ -97,7 +90,6 @@ def initialize_v_cruise(v_ego, buttonEvents, v_cruise_last):
       return v_cruise_last
 
   return int(round(clip(v_ego * CV.MS_TO_KPH, V_CRUISE_ENABLE_MIN, V_CRUISE_MAX)))
-
 
 def kill_defaultd():
   # defaultd is used to send can messages when controlsd is off to make car test easier

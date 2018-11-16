@@ -15,9 +15,15 @@
 
 ACADOvariables acadoVariables;
 ACADOworkspace acadoWorkspace;
+double _srCost;
+double _pCost;
+double _lCost;
+double _rCost;
+double _hCost;
 double srCost;
 double pCost;
 double lCost;
+double rCost;
 double hCost;
 
 typedef struct {
@@ -38,10 +44,11 @@ void init(double pathCost, double laneCost, double headingCost, double steerRate
   int    i;
   const int STEP_MULTIPLIER = 3;
 
-  srCost = steerRateCost;
-  pCost = pathCost;
-  lCost = laneCost;
-  hCost = headingCost;
+  _srCost = steerRateCost;
+  _pCost = pathCost;
+  _lCost = laneCost;
+  _rCost = laneCost;
+  _hCost = headingCost;
 
   /* Initialize the states and controls. */
   for (i = 0; i < NX * (N + 1); ++i)  acadoVariables.x[ i ] = 0.0;
@@ -78,20 +85,26 @@ int run_mpc(state_t * x0, log_t * solution,
   int    i;
   const int STEP_MULTIPLIER = 3;
 
+  pCost = _pCost; //* .5 * (l_prob + r_prob);
+  lCost = _lCost; //* l_prob;
+  rCost = _rCost; //* r_prob;
+  hCost = _hCost;
+  srCost = _srCost; // * 2 / (0.1 + l_prob + r_prob);
+
   for (i = 0; i < N; i++) {
     int f = 1;
     if (i > 4){
       f = STEP_MULTIPLIER;
     }
-    acadoVariables.W[25 * i + 0] = pCost * f * 2 / (0.2 + l_prob + r_prob);
-    acadoVariables.W[25 * i + 6] = lCost * f * l_prob;
-    acadoVariables.W[25 * i + 12] = lCost * f * r_prob;
+    acadoVariables.W[25 * i + 0] = pCost * f;
+    acadoVariables.W[25 * i + 6] = lCost * f;
+    acadoVariables.W[25 * i + 12] = rCost * f;
     acadoVariables.W[25 * i + 18] = hCost * f;
-    acadoVariables.W[25 * i + 24] = srCost * f * 2 / (0.1 + l_prob + r_prob);
+    acadoVariables.W[25 * i + 24] = srCost * f;
   }
-  acadoVariables.WN[0] = pCost * STEP_MULTIPLIER * 2 / (0.2 + l_prob + r_prob);
+  acadoVariables.WN[0] = pCost * STEP_MULTIPLIER;
   acadoVariables.WN[5] = lCost * STEP_MULTIPLIER;
-  acadoVariables.WN[10] = lCost * STEP_MULTIPLIER;
+  acadoVariables.WN[10] = rCost * STEP_MULTIPLIER;
   acadoVariables.WN[15] = hCost * STEP_MULTIPLIER;
 
   for (i = 0; i <= NOD * N; i+= NOD){
