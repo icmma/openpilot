@@ -189,7 +189,7 @@ class LatControl(object):
         self.angle_rate_count += 1
 
         future_angle_steers = (self.avg_angle_rate * _DT_MPC) + self.starting_angle_steers
-        self.angle_steers_des = self.angle_steers_des_mpc
+        self.angle_steers_des = int(self.angle_steers_des_mpc * 10.) / 10.
       
       elif True == False:
         dt = min(cur_time - self.angle_steers_des_time + _DT, _DT_MPC)  # no greater than dt mpc, to prevent overshoot
@@ -202,7 +202,7 @@ class LatControl(object):
       self.pid.neg_limit = -steers_max
 
       if enable_enhancements and VM.CP.steerControlType == car.CarParams.SteerControlType.torque:
-        steer_feedforward = apply_deadzone(self.angle_steers_des - float(angle_offset), 0.0)  #self.steer_zero_crossing
+        steer_feedforward = apply_deadzone(self.angle_steers_des - float(angle_offset), 0.5)  #self.steer_zero_crossing
         steer_feedforward *= v_ego**2 / ratioFactor  # proportional to realigning tire momentum (~ lateral accel)
       else:
         steer_feedforward = self.angle_steers_des * v_ego**2   # feedforward desired angle
