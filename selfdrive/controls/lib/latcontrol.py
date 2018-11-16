@@ -43,7 +43,7 @@ class LatControl(object):
 
   def setup_mpc(self, steer_rate_cost):
     self.libmpc = libmpc_py.libmpc
-    self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING, steer_rate_cost)
+    self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING * 0.1, steer_rate_cost)
 
     self.mpc_solution = libmpc_py.ffi.new("log_t *")
     self.cur_state = libmpc_py.ffi.new("state_t *")

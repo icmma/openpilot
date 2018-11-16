@@ -7,6 +7,8 @@ class PathPlanner(object):
   def __init__(self):
     self.d_poly = [0., 0., 0., 0.]
     self.c_poly = [0., 0., 0., 0.]
+    self.l_poly = [0., 0., 0., 0.]
+    self.r_poly = [0., 0., 0., 0.]
     self.c_prob = 0.
     self.last_model = 0.
     self.lead_dist, self.lead_prob, self.lead_var = 0, 0, 1
@@ -42,7 +44,7 @@ class PathPlanner(object):
       lane_width_diff = abs(self.lane_width - current_lane_width)
       lane_prob = interp(lane_width_diff, [0.3, 1.0], [1.0, 0.0])
 
-      if abs(self.c_poly[3] - r_poly[3]) > abs(self.c_poly[3] - l_poly[3]
+      if abs(self.r_poly[3] - r_poly[3]) > abs(self.l_poly[3] - l_poly[3]):
         r_prob *= lane_prob
       else:
         l_prob *= lane_prob
