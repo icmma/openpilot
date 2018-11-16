@@ -44,16 +44,13 @@ class PathPlanner(object):
       lane_width_diff = abs(self.lane_width - current_lane_width)
       lane_prob = interp(lane_width_diff, [0.3, 1.0], [1.0, 0.0])
 
-      if abs(self.r_poly[3] - self.c_poly[3]) - abs(self.l_poly[3] - self.c_poly[3]) > 0.3 or \
-         (abs(self.r_poly[3] - self.c_poly[3]) > abs(self.l_poly[3] - self.c_poly[3]) and \
-         abs(self.r_poly[3] - r_poly[3]) > abs(self.l_poly[3] - l_poly[3])):
+      if abs(self.r_poly[3] - self.c_poly[3]) - abs(self.l_poly[3] - self.c_poly[3]) > 0.3 and \
+         abs(self.r_poly[3] - r_poly[3]) > abs(self.l_poly[3] - l_poly[3]):
         r_prob *= lane_prob
-
-      elif abs(self.l_poly[3] - self.c_poly[3]) - abs(self.r_poly[3] - self.c_poly[3]) > 0.3 or \
-         (abs(self.l_poly[3] - self.c_poly[3]) > abs(self.r_poly[3] - self.c_poly[3]) and \
-         abs(self.l_poly[3] - l_poly[3]) > abs(self.r_poly[3] - r_poly[3])):
-        l_prob *= lane_prob
-
+      elif abs(self.l_poly[3] - self.c_poly[3]) - abs(self.r_poly[3] - self.c_poly[3]) > 0.3 and \
+         abs(self.l_poly[3] - l_poly[3]) > abs(self.r_poly[3] - r_poly[3]):
+        l_prob *= lane_prob      
+      
       self.lead_dist = md.model.lead.dist
       self.lead_prob = md.model.lead.prob
       self.lead_var = md.model.lead.std**2
