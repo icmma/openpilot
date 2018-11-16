@@ -11,9 +11,9 @@ V_CRUISE_DELTA = 8
 V_CRUISE_ENABLE_MIN = 40
 
 class MPC_COST_LAT:
-  PATH = 1.0
-  LANE = 3.0
-  HEADING = 1.0
+  PATH = 4.0
+  LANE = 1.0
+  HEADING = 0.1
   STEER_RATE = 1.0
 
 

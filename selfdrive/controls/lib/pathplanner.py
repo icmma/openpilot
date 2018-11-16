@@ -28,7 +28,7 @@ class PathPlanner(object):
       l_poly[3] += CAMERA_OFFSET
       r_poly[3] += CAMERA_OFFSET
 
-      p_prob = 1.  # model does not tell this probability yet, so set to 1 for now
+      p_prob = 3. - md.model.leftLane.prob - md.model.rightLane.prob  # model does not tell this probability yet, so set to 1 for now
       l_prob = md.model.leftLane.prob  # left line prob
       r_prob = md.model.rightLane.prob  # right line prob
 
@@ -44,9 +44,14 @@ class PathPlanner(object):
       lane_width_diff = abs(self.lane_width - current_lane_width)
       lane_prob = interp(lane_width_diff, [0.3, 1.0], [1.0, 0.0])
 
-      if abs(self.r_poly[3] - r_poly[3]) > abs(self.l_poly[3] - l_poly[3]):
+      if abs(self.r_poly[3] - self.c_poly[3]) - abs(self.l_poly[3] - self.c_poly[3]) > 0.3 or 
+         (abs(self.r_poly[3] - self.c_poly[3]) > abs(self.l_poly[3] - self.c_poly[3]) and \
+         abs(self.r_poly[3] - r_poly[3]) > abs(self.l_poly[3] - l_poly[3])):
         r_prob *= lane_prob
-      else:
+
+      elif abs(self.l_poly[3] - self.c_poly[3]) - abs(self.r_poly[3] - self.c_poly[3]) > 0.3 or 
+         (abs(self.l_poly[3] - self.c_poly[3]) > abs(self.r_poly[3] - self.c_poly[3]) and \
+         abs(self.l_poly[3] - l_poly[3]) > abs(self.r_poly[3] - r_poly[3])):
         l_prob *= lane_prob
 
       self.lead_dist = md.model.lead.dist
