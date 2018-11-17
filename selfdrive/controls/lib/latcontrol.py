@@ -94,7 +94,11 @@ class LatControl(object):
   def reset(self):
     self.pid.reset()
 
+<<<<<<< HEAD
   def update(self, active, v_ego, angle_steers, angle_rate, steer_override, d_poly, angle_offset, CP, VM, PL):
+=======
+  def update(self, active, v_ego, angle_steers, steer_override, d_poly, angle_offset, CP, VM, PL):
+>>>>>>> origin
     cur_time = sec_since_boot()
     self.mpc_updated = False
 
@@ -195,10 +199,11 @@ class LatControl(object):
       self.avg_angle_rate = (self.avg_angle_rate * self.angle_rate_count + angle_rate) / (self.angle_rate_count + 1) 
       self.angle_rate_count += 1
 
-      if abs(angle_rate) <= 1. or abs(angle_steers - self.angle_steers_des_mpc) < 0.25
-      future_angle_steers = (self.avg_angle_rate * _DT_MPC) + self.starting_angle_steers
-      self.angle_steers_des = self.angle_steers_des_mpc
-        
+      if abs(angle_rate) <= 1. or abs(angle_steers - self.angle_steers_des_mpc) < 0.25:
+        self.angle_steers_des = self.angle_steers_des_mpc
+      else:
+        future_angle_steers = (self.avg_angle_rate * _DT_MPC) + self.starting_angle_steers
+      
       steers_max = get_steer_max(CP, v_ego)
       self.pid.pos_limit = steers_max
       self.pid.neg_limit = -steers_max
@@ -208,7 +213,6 @@ class LatControl(object):
         steer_feedforward *= v_ego**2 / ratioFactor  # proportional to realigning tire momentum (~ lateral accel)
       else:
         steer_feedforward = self.angle_steers_des * v_ego**2   # feedforward desired angle
-  
       deadzone = 0.0
 
       output_steer =  self.pid.update(self.angle_steers_des, future_angle_steers, check_saturation=False, override=steer_override,
