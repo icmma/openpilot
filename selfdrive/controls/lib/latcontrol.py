@@ -94,11 +94,7 @@ class LatControl(object):
   def reset(self):
     self.pid.reset()
 
-<<<<<<< HEAD
   def update(self, active, v_ego, angle_steers, angle_rate, steer_override, d_poly, angle_offset, CP, VM, PL):
-=======
-  def update(self, active, v_ego, angle_steers, steer_override, d_poly, angle_offset, CP, VM, PL):
->>>>>>> origin
     cur_time = sec_since_boot()
     self.mpc_updated = False
 
@@ -200,7 +196,7 @@ class LatControl(object):
       self.angle_rate_count += 1
 
       if abs(angle_rate) <= 1. or abs(angle_steers - self.angle_steers_des_mpc) < 0.25:
-        self.angle_steers_des = self.angle_steers_des_mpc
+        future_angle_steers = angle_steers
       else:
         future_angle_steers = (self.avg_angle_rate * _DT_MPC) + self.starting_angle_steers
       
@@ -209,13 +205,13 @@ class LatControl(object):
       self.pid.neg_limit = -steers_max
 
       if enable_enhancements and CP.steerControlType == car.CarParams.SteerControlType.torque:
-        steer_feedforward = apply_deadzone(self.angle_steers_des - float(angle_offset), 0.5)  #self.steer_zero_crossing
+        steer_feedforward = apply_deadzone(self.angle_steers_des_mpc - float(angle_offset), 0.5)  #self.steer_zero_crossing
         steer_feedforward *= v_ego**2 / ratioFactor  # proportional to realigning tire momentum (~ lateral accel)
       else:
-        steer_feedforward = self.angle_steers_des * v_ego**2   # feedforward desired angle
+        steer_feedforward = self.angle_steers_des_mpc * v_ego**2   # feedforward desired angle
       deadzone = 0.0
 
-      output_steer =  self.pid.update(self.angle_steers_des, future_angle_steers, check_saturation=False, override=steer_override,
+      output_steer =  self.pid.update(self.angle_steers_des_mpc, future_angle_steers, check_saturation=False, override=steer_override,
                                      feedforward=steer_feedforward, speed=v_ego, deadzone=deadzone)
 
       if not steer_override and v_ego > 10. and abs(angle_steers) <= 10:
