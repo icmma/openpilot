@@ -40,14 +40,18 @@ class LatControl(object):
                             k_f=CP.steerKf, pos_limit=1.0)
     self.last_cloudlog_t = 0.0
     self.setup_mpc(CP.steerRateCost)
+    self.smooth_factor = CP.steerActuatorDelay / _DT
+    self.ff_angle_factor = 0.5
+    self.ff_rate_factor = 10.0
+    self.accel_limit = 5.0
 
   def update_rt_params(self, CP):
-    # TODO:  Is this really necessary, or is the original reference preserved through the cap n' proto setup?
+        # TODO:  Is this really necessary, or is the original reference preserved through the cap n' proto setup?
     # Real-time tuning:  Update these values from the CP if called from real-time tuning logic in controlsd
     self.pid._k_p = (CP.steerKpBP, CP.steerKpV)    # proportional gain
     self.pid._k_i = (CP.steerKiBP, CP.steerKiV)    # integral gain
     self.pid.k_f = CP.steerKf                      # feedforward gain
-
+    
   def setup_mpc(self, steer_rate_cost):
     self.libmpc = libmpc_py.libmpc
     self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING, steer_rate_cost)
@@ -70,12 +74,8 @@ class LatControl(object):
     self.steerpub = self.context.socket(zmq.PUB)
     self.steerpub.bind("tcp://*:8594")
     self.steerdata = ""
-    self.smooth_factor = 11.0 * _DT_MPC / _DT
     self.feed_forward = 0.0
     self.angle_rate_desired = 0.0
-    self.ff_angle_factor = 0.25
-    self.ff_rate_factor = 2.5
-    self.accel_limit = 0.3
 
   def reset(self):
     self.pid.reset()
@@ -138,7 +138,7 @@ class LatControl(object):
       self.pid.reset()
     else:
       self.angle_steers_des = self.angle_steers_des_prev + self.angle_rate_desired * (cur_time - self.angle_steers_des_time)
-      restricted_steer_rate = np.clip((self.angle_steers_des - float(angle_steers)) / _DT , float(angle_rate) - self.accel_limit, float(angle_rate) + self.accel_limit)
+      restricted_steer_rate = np.clip((self.angle_steers_des - float(angle_steers)), float(angle_rate) - self.accel_limit , float(angle_rate) + self.accel_limit)
       future_angle_steers_des = float(angle_steers) + self.smooth_factor * _DT * restricted_steer_rate
       future_angle_steers = float(angle_steers) + self.smooth_factor * _DT * float(angle_rate)
 
@@ -177,9 +177,9 @@ class LatControl(object):
       self.angle_rate_count = 0.0
       driver_torque = 0.0
       steer_motor = 0.0
-
-      self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (self.isActive, \
-      ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, float(restricted_steer_rate) ,self.ff_angle_factor, self.ff_rate_factor, self.pCost, self.lCost, self.rCost, self.hCost, self.srCost, steer_motor, float(driver_torque), \
+      
+      self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (self.isActive, \
+      ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, self.smooth_factor, self.accel_limit, float(restricted_steer_rate) ,self.ff_angle_factor, self.ff_rate_factor, self.pCost, self.lCost, self.rCost, self.hCost, self.srCost, steer_motor, float(driver_torque), \
       self.angle_rate_count, self.angle_rate_desired, self.avg_angle_rate, future_angle_steers, float(angle_rate), self.steer_zero_crossing, self.center_angle, angle_steers, self.angle_steers_des, angle_offset, \
       self.angle_steers_des_mpc, CP.steerRatio, CP.steerKf, CP.steerKpV[0], CP.steerKiV[0], CP.steerRateCost, PL.PP.l_prob, \
       PL.PP.r_prob, PL.PP.c_prob, PL.PP.p_prob, self.l_poly[0], self.l_poly[1], self.l_poly[2], self.l_poly[3], self.r_poly[0], self.r_poly[1], self.r_poly[2], self.r_poly[3], \

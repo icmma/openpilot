@@ -547,10 +547,14 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
           CP.steerKpV = tuning.steerKpV
           CP.steerKiV = tuning.steerKiV
           CP.steerKf = tuning.steerKf[0]
+          LaC.resonant_period = tuning.smooth_factor[0]
+          LaC.accel_limit = tuning.accel_limit[0]
+          LaC.ff_angle_factor = tuning.ff_angle_factor[0]
+          LaC.ff_rate_factor = tuning.ff_rate_factor[0]
           #CP.steerKiBP = tuning.steerKiBP
-          #CP.steerKpBP = tuning.steerKpBP
-          CP.steerRatio = tuning.steerRatio[0]
-          CP.steerActuatorDelay = tuning.steerActuatorDelay[0]
+            #CP.steerKpBP = tuning.steerKpBP
+          #CP.steerRatio = tuning.steerRatio[0]
+          #CP.steerActuatorDelay = tuning.steerActuatorDelay[0]
 
           last_mod_time = os.path.getmtime(tune_file)
         else:
@@ -562,6 +566,7 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
         print "CP.steerKiBP: %s" % CP.steerKiBP
         print "CP.steerKpBP: %s" % CP.steerKpBP
         print "CP.steerRatio: %s" % CP.steerRatio
+        print "LaC.resonant_period: %s" % LaC.resonant_period
         print "CP.steerActuatorDelay: %s" % CP.steerActuatorDelay
 
         VM.update_rt_params(CP)
