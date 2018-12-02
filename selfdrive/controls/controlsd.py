@@ -552,9 +552,9 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
           LaC.ff_angle_factor = tuning.ff_angle_factor[0]
           LaC.ff_rate_factor = tuning.ff_rate_factor[0]
           #CP.steerKiBP = tuning.steerKiBP
-            #CP.steerKpBP = tuning.steerKpBP
-          #CP.steerRatio = tuning.steerRatio[0]
-          #CP.steerActuatorDelay = tuning.steerActuatorDelay[0]
+          #CP.steerKpBP = tuning.steerKpBP
+          CP.steerRatio = tuning.steerRatio[0]
+          CP.steerActuatorDelay = tuning.steerActuatorDelay[0]
 
           last_mod_time = os.path.getmtime(tune_file)
         else:

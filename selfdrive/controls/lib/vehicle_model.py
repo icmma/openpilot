@@ -106,19 +106,20 @@ class VehicleModel(object):
     self.cR = CP.tireStiffnessRear
     self.sR = CP.steerRatio
     self.chi = CP.steerRatioRear
+    self.sf = 0.0
 
   def update_rt_params(self, CP):
     # Update parameters used in real-time tuning if called from real-time tuning logic in controlsd
     # TODO:  Determine if really necessary
-    #self.m = CP.mass
-    #self.j = CP.rotationalInertia
-    #self.l = CP.wheelbase
-    #self.aF = CP.centerToFront
-    #self.aR = CP.wheelbase - CP.centerToFront
+    self.m = CP.mass
+    self.j = CP.rotationalInertia
+    self.l = CP.wheelbase
+    self.aF = CP.centerToFront
+    self.aR = CP.wheelbase - CP.centerToFront
     self.cF = CP.tireStiffnessFront
     self.cR = CP.tireStiffnessRear
     self.sR = CP.steerRatio
-    #self.chi = CP.steerRatioRear
+    self.chi = CP.steerRatioRear
 
   def update_state(self, state):
     self.state = state
@@ -163,8 +164,8 @@ class VehicleModel(object):
     Returns:
       Curvature factor [1/m]
     """
-    sf = calc_slip_factor(self)
-    return (1. - self.chi) / (1. - sf * u**2) / self.l
+    self.sf = calc_slip_factor(self)
+    return (1. - self.chi) / (1. - self.sf * u**2) / self.l
 
   def get_steer_from_curvature(self, curv, u):
     """Calculates the required steering wheel angle for a given curvature
