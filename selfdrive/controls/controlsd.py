@@ -281,9 +281,10 @@ def state_control(plan, CS, CP, state, events, v_cruise_kph, v_cruise_kph_last, 
                                               v_cruise_kph, plan.vTarget, plan.vTargetFuture, plan.aTarget,
                                               CP, PL.lead_1)
   # Steering PID loop and lateral MPC
-  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate, CS.steeringTorque, \
-                                                    CS.steerParameter1, CS.steerParameter2, CS.steerParameter3, CS.steerParameter4, 
-                                                     CS.steeringPressed, plan.dPoly, angle_offset, CP, VM, PL)
+  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate, \
+                                                    CS.steerParameter1, CS.steerParameter2, CS.steerParameter3, CS.steerParameter4, \
+                                                    CS.steerParameter5, CS.steerParameter6, CS.steerStockTorque, CS.steerStockTorqueRequest, \
+                                                     CS.steeringTorque, CS.steeringPressed, plan.dPoly, angle_offset, CP, VM, PL)
 
   # Send a "steering required alert" if saturation count has reached the limit
   if LaC.sat_flag and CP.steerLimitAlert:

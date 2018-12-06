@@ -135,15 +135,37 @@ def get_cam_can_parser(CP):
 
   # all hondas except CRV and RDX use 0xe4 for steering
   signals = [
+      ("NEW_SIGNAL_1", "STEERING_CONTROL", 0), 
+      ("NEW_SIGNAL_2", "STEERING_CONTROL", 0), 
+      ("STEER_TORQUE", "STEERING_CONTROL", 0),
+      ("STEER_TORQUE_REQUEST", "STEERING_CONTROL", 0),
       ("NEW_SIGNAL_1", "STEERING_CONTROL2", 0),
       ("NEW_SIGNAL_2", "STEERING_CONTROL2", 0),
       ("NEW_SIGNAL_3", "STEERING_CONTROL2", 0),
       ("NEW_SIGNAL_4", "STEERING_CONTROL2", 0),
+      ("SET_ME_X41", "LKAS_HUD", 0),
+      ("SET_ME_X48", "LKAS_HUD", 0),
+      ("BOH", "LKAS_HUD", 0),
+      ("DASHED_LANES", "LKAS_HUD", 0),
+      ("DTC", "LKAS_HUD", 0),
+      ("LKAS_PROBLEM", "LKAS_HUD", 0),
+      ("LKAS_OFF", "LKAS_HUD", 0),
+      ("SOLID_LANES", "LKAS_HUD", 0),
+      ("LDW_RIGHT", "LKAS_HUD", 0),
+      ("STEERING_REQUIRED", "LKAS_HUD", 0),
+      ("BOH2", "LKAS_HUD", 0),
+      ("LDW_PROBLEM", "LKAS_HUD", 0),
+      ("BEEP", "LKAS_HUD", 0),
+      ("LDW_ON", "LKAS_HUD", 0),
+      ("LDW_OFF", "LKAS_HUD", 0),
+      ("CLEAN_WINDSHIELD", "LKAS_HUD", 0),
+      ("LDW_OFF", "LKAS_HUD", 0),      
   ]
 
   checks = [
-      ("STEERING_CONTROL2", 100),
-      (0xe4, 100),
+      ("STEERING_CONTROL2", 50),
+      ("STEERING_CONTROL", 100),
+      ("LKAS_HUD", 10),
   ]
 
   if CP.carFingerprint in [CAR.CRV, CAR.ACURA_RDX]:
@@ -217,11 +239,31 @@ class CarState(object):
     self.steer_error = cp.vl["STEER_STATUS"]['STEER_STATUS'] not in [0, 2, 3, 4, 6]
     self.steer_not_allowed = cp.vl["STEER_STATUS"]['STEER_STATUS'] != 0
     self.steer_warning = cp.vl["STEER_STATUS"]['STEER_STATUS'] not in [0, 3]   # 3 is low speed lockout, not worth a warning
+    self.steer_stock_torque = cp_cam.vl['STEERING_CONTROL']['STEER_TORQUE']
+    self.steer_stock_torque_request = cp_cam.vl['STEERING_CONTROL']['STEER_TORQUE_REQUEST']
     self.steer_parameter1 = cp_cam.vl['STEERING_CONTROL2']['NEW_SIGNAL_1']
     self.steer_parameter2 = cp_cam.vl['STEERING_CONTROL2']['NEW_SIGNAL_2']
     self.steer_parameter3 = cp_cam.vl['STEERING_CONTROL2']['NEW_SIGNAL_3']
     self.steer_parameter4 = cp_cam.vl['STEERING_CONTROL2']['NEW_SIGNAL_4']
-    
+    self.steer_parameter5 = cp_cam.vl['STEERING_CONTROL']['NEW_SIGNAL_1']
+    self.steer_parameter6 = cp_cam.vl['STEERING_CONTROL']['NEW_SIGNAL_2']
+    self.SET_ME_X41 = cp_cam.vl['LKAS_HUD']['SET_ME_X41']
+    self.BOH = cp_cam.vl['LKAS_HUD']['BOH']
+    self.DASHED_LANES = cp_cam.vl['LKAS_HUD']['DASHED_LANES']
+    self.DTC = cp_cam.vl['LKAS_HUD']['DTC']
+    self.LKAS_PROBLEM = cp_cam.vl['LKAS_HUD']['LKAS_PROBLEM']
+    self.LKAS_OFF = cp_cam.vl['LKAS_HUD']['LKAS_OFF']
+    self.SOLID_LANES = cp_cam.vl['LKAS_HUD']['SOLID_LANES']
+    self.LDW_RIGHT = cp_cam.vl['LKAS_HUD']['LDW_RIGHT']
+    self.STEERING_REQUIRED = cp_cam.vl['LKAS_HUD']['STEERING_REQUIRED']
+    self.BOH2 = cp_cam.vl['LKAS_HUD']['BOH2']
+    self.LDW_PROBLEM = cp_cam.vl['LKAS_HUD']['LDW_PROBLEM']
+    self.BEEP = cp_cam.vl['LKAS_HUD']['BEEP']
+    self.LDW_ON = cp_cam.vl['LKAS_HUD']['LDW_ON']
+    self.LDW_OFF = cp_cam.vl['LKAS_HUD']['LDW_OFF']
+    self.CLEAN_WINDSHIELD = cp_cam.vl['LKAS_HUD']['CLEAN_WINDSHIELD']
+    self.SET_ME_X48 = cp_cam.vl['LKAS_HUD']['SET_ME_X48']
+
     self.brake_error = cp.vl["STANDSTILL"]['BRAKE_ERROR_1'] or cp.vl["STANDSTILL"]['BRAKE_ERROR_2']
     self.esp_disabled = cp.vl["VSA_STATUS"]['ESP_DISABLED']
 
