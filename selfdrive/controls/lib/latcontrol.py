@@ -59,6 +59,7 @@ class LatControl(object):
     self.frames = 0
     self.curvature_factor = 0.0
     self.slip_factor = 0.0
+    self.isActive = 0
 
   def setup_mpc(self, steer_rate_cost):
     self.libmpc = libmpc_py.libmpc
@@ -156,6 +157,10 @@ class LatControl(object):
       output_steer = 0.0
       self.feed_forward = 0.0
       self.pid.reset()
+      ff_type = "r"
+      projected_angle_steers_des = 0.0
+      projected_angle_steers = 0.0
+      restricted_steer_rate = 0.0
     else:
       # Interpolate desired angle between MPC updates
       self.angle_steers_des = self.angle_steers_des_prev + self.angle_rate_desired * (cur_time - self.angle_steers_des_time)

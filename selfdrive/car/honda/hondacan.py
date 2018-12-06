@@ -62,6 +62,15 @@ def create_steering_control(packer, apply_steer, lkas_active, car_fingerprint, i
   bus = 2 if car_fingerprint in HONDA_BOSCH else 0
   return packer.make_can_msg("STEERING_CONTROL", bus, values, idx)
 
+def create_steering_control2(packer, CS, lkas_active, car_fingerprint, idx):
+  values = {
+    "NEW_SIGNAL_1": CS.steer_parameter1,
+    "NEW_SIGNAL_2": CS.steer_parameter2,
+    "NEW_SIGNAL_3": CS.steer_parameter3,
+    "NEW_SIGNAL_4": CS.steer_parameter4,
+  }
+  bus = 2 if car_fingerprint in HONDA_BOSCH else 0
+  return packer.make_can_msg("STEERING_CONTROL2", bus, values, idx)
 
 def create_ui_commands(packer, pcm_speed, hud, car_fingerprint, idx):
   commands = []
