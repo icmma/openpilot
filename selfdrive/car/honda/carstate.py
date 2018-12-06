@@ -38,6 +38,10 @@ def get_can_signals(CP):
       ("STEER_ANGLE_RATE", "STEERING_SENSORS", 0),
       ("STEER_ANGLE_OFFSET", "STEERING_SENSORS", 0),
       ("STEER_TORQUE_SENSOR", "STEER_STATUS", 0),
+      ("NEW_SIGNAL_1", "STEERING_CONTROL2", 0),
+      ("NEW_SIGNAL_2", "STEERING_CONTROL2", 0),
+      ("NEW_SIGNAL_3", "STEERING_CONTROL2", 0),
+      ("NEW_SIGNAL_4", "STEERING_CONTROL2", 0),
       ("LEFT_BLINKER", "SCM_FEEDBACK", 0),
       ("RIGHT_BLINKER", "SCM_FEEDBACK", 0),
       ("GEAR", "GEARBOX", 0),
@@ -60,6 +64,7 @@ def get_can_signals(CP):
 
   checks = [
       ("ENGINE_DATA", 100),
+      ("STEERING_CONTROL2", 100),
       ("WHEEL_SPEEDS", 50),
       ("STEERING_SENSORS", 100),
       ("SCM_FEEDBACK", 10),
@@ -206,6 +211,11 @@ class CarState(object):
     self.steer_error = cp.vl["STEER_STATUS"]['STEER_STATUS'] not in [0, 2, 3, 4, 6]
     self.steer_not_allowed = cp.vl["STEER_STATUS"]['STEER_STATUS'] != 0
     self.steer_warning = cp.vl["STEER_STATUS"]['STEER_STATUS'] not in [0, 3]   # 3 is low speed lockout, not worth a warning
+    self.steer_parameter1 = cp.vl['STEERING_CONTROL2']['NEW_SIGNAL_1']
+    self.steer_parameter2 = cp.vl['STEERING_CONTROL2']['NEW_SIGNAL_2']
+    self.steer_parameter3 = cp.vl['STEERING_CONTROL2']['NEW_SIGNAL_3']
+    self.steer_parameter4 = cp.vl['STEERING_CONTROL2']['NEW_SIGNAL_4']
+    
     self.brake_error = cp.vl["STANDSTILL"]['BRAKE_ERROR_1'] or cp.vl["STANDSTILL"]['BRAKE_ERROR_2']
     self.esp_disabled = cp.vl["VSA_STATUS"]['ESP_DISABLED']
 

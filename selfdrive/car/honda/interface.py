@@ -397,6 +397,10 @@ class CarInterface(object):
     ret.wheelSpeeds.fr = self.CS.v_wheel_fr
     ret.wheelSpeeds.rl = self.CS.v_wheel_rl
     ret.wheelSpeeds.rr = self.CS.v_wheel_rr
+    ret.steerParameter1 = self.CS.steer_parameter1
+    ret.steerParameter2 = self.CS.steer_parameter2
+    ret.steerParameter3 = self.CS.steer_parameter3
+    ret.steerParameter4 = self.CS.steer_parameter4
 
     # gas pedal
     ret.gas = self.CS.car_gas / 256.0
