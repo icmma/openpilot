@@ -74,7 +74,7 @@ def create_steering_control(packer, apply_steer, CS, lkas_active, car_fingerprin
 def create_steering_control2(packer, CS, lkas_active, car_fingerprint, idx):
   values = {
     "NEW_SIGNAL_1": CS.steer_parameter1,
-    "NEW_SIGNAL_2": CS.steer_parameter2,
+    "NEW_SIGNAL_2": int(CS.steer_parameter2) | 32,
     "NEW_SIGNAL_3": CS.steer_parameter3,
     "NEW_SIGNAL_4": CS.steer_parameter4,
   }
