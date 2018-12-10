@@ -106,6 +106,9 @@ struct CarState {
   steeringPressed @9 :Bool;    # if the user is using the steering wheel
   steerStockTorque @30 :Float32;
   steerStockTorqueRequest @31 :Float32;
+  steeringStatus @34 :UInt64;
+  steeringTorqueMotor @35 :Int64;
+  steeringControlActive @36 :UInt64; 
   steerParameter1 @26 :Float32;
   steerParameter2 @27 :Float32;
   steerParameter3 @28 :Float32;

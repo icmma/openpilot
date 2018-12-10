@@ -281,7 +281,8 @@ def state_control(plan, CS, CP, state, events, v_cruise_kph, v_cruise_kph_last, 
                                               v_cruise_kph, plan.vTarget, plan.vTargetFuture, plan.aTarget,
                                               CP, PL.lead_1)
   # Steering PID loop and lateral MPC
-  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate, \
+  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate, CS.steeringStatus, \
+                                                    CS.steeringTorqueMotor, CS.steeringControlActive, \
                                                     CS.steerParameter1, CS.steerParameter2, CS.steerParameter3, CS.steerParameter4, \
                                                     CS.steerParameter5, CS.steerParameter6, CS.steerStockTorque, CS.steerStockTorqueRequest, \
                                                      CS.steeringTorque, CS.steeringPressed, plan.dPoly, angle_offset, CP, VM, PL)
