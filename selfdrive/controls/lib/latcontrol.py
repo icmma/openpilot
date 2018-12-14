@@ -61,12 +61,13 @@ class LatControl(object):
     self.angle_sample_count = 0.0
     self.projected_angle_steers = 0.0
     self.lateral_error = 0.0
+    self.noise_gain = 0.0
 
     # variables for dashboarding
     self.context = zmq.Context()
     self.steerpub = self.context.socket(zmq.PUB)
     self.steerpub.bind("tcp://*:8594")
-    self.influxString = 'steerData3,testName=none,active=%s,ff_type=%s ff_type_a=%s,ff_type_r=%s,steer_status=%s,steer_torque_motor=%s,' \
+    self.influxString = 'steerData3,testName=none,active=%s,ff_type=%s ff_type_a=%s,ff_type_r=%s,noise_gain=%s,steer_status=%s,steer_torque_motor=%s,' \
                     'steering_control_active=%s,steer_parameter1=%s,steer_parameter2=%s,steer_parameter3=%s,steer_parameter4=%s,steer_parameter5=%s,' \
                     'steer_parameter6=%s,steer_stock_torque=%s,steer_stock_torque_request=%s,x=%s,y=%s,yb=%s,y0=%s,y1=%s,y2=%s,y3=%s,y4=%s,psi=%s,delta=%s,t=%s,' \
                     'curvature_factor=%s,slip_factor=%s,resonant_period=%s,accel_limit=%s,restricted_steer_rate=%s,ff_angle_factor=%s,ff_rate_factor=%s,' \
@@ -76,6 +77,7 @@ class LatControl(object):
                     'r_prob=%s,c_prob=%s,p_prob=%s,l_poly[0]=%s,l_poly[1]=%s,l_poly[2]=%s,l_poly[3]=%s,r_poly[0]=%s,r_poly[1]=%s,r_poly[2]=%s,r_poly[3]=%s,' \
                     'p_poly[0]=%s,p_poly[1]=%s,p_poly[2]=%s,p_poly[3]=%s,c_poly[0]=%s,c_poly[1]=%s,c_poly[2]=%s,c_poly[3]=%s,d_poly[0]=%s,d_poly[1]=%s,' \
                     'd_poly[2]=%s,lane_width=%s,lane_width_estimate=%s,lane_width_certainty=%s,v_ego=%s,p=%s,i=%s,f=%s %s\n~'
+
     self.steerdata = self.influxString
     self.frames = 0
     self.curvature_factor = 0.0
@@ -134,6 +136,8 @@ class LatControl(object):
       self.libmpc.run_mpc(self.cur_state, self.mpc_solution,
                           self.l_poly, self.r_poly, self.p_poly,
                           PL.PP.l_prob, PL.PP.r_prob, PL.PP.p_prob, self.curvature_factor, v_ego_mpc, PL.PP.lane_width)
+
+      self.noise_gain = interp(abs(self.mpc_solution[0].y[10]), [0., .5], [-2., 1.])
 
       # reset to current steer angle if not active or overriding
       if active:
@@ -245,8 +249,8 @@ class LatControl(object):
       steer_stock_torque = 0.0
       steer_stock_torque_request = 0.0
 
-      self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (self.isActive, \
-      ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, steer_status, steer_torque_motor, steering_control_active, steer_parameter1, steer_parameter2, steer_parameter3, steer_parameter4, steer_parameter5, steer_parameter6, steer_stock_torque, steer_stock_torque_request, self.cur_state[0].x, self.cur_state[0].y, self.lateral_error, self.mpc_solution[0].y[0], self.mpc_solution[0].y[1], self.mpc_solution[0].y[2], self.mpc_solution[0].y[3], self.mpc_solution[0].y[4], self.cur_state[0].psi, self.cur_state[0].delta, self.cur_state[0].t, self.curvature_factor, self.slip_factor ,self.smooth_factor, self.accel_limit, float(restricted_steer_rate) ,self.ff_angle_factor, self.ff_rate_factor, self.pCost, self.lCost, self.rCost, self.hCost, self.srCost, steer_motor, float(driver_torque), \
+      self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (self.isActive, \
+      ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, self.noise_gain, steer_status, steer_torque_motor, steering_control_active, steer_parameter1, steer_parameter2, steer_parameter3, steer_parameter4, steer_parameter5, steer_parameter6, steer_stock_torque, steer_stock_torque_request, self.cur_state[0].x, self.cur_state[0].y, self.lateral_error, self.mpc_solution[0].y[0], self.mpc_solution[0].y[1], self.mpc_solution[0].y[2], self.mpc_solution[0].y[3], self.mpc_solution[0].y[4], self.cur_state[0].psi, self.cur_state[0].delta, self.cur_state[0].t, self.curvature_factor, self.slip_factor ,self.smooth_factor, self.accel_limit, float(restricted_steer_rate) ,self.ff_angle_factor, self.ff_rate_factor, self.pCost, self.lCost, self.rCost, self.hCost, self.srCost, steer_motor, float(driver_torque), \
       self.angle_rate_count, self.angle_rate_desired, self.avg_angle_rate, projected_angle_steers, float(angle_rate), self.steer_zero_crossing, self.center_angle, angle_steers, self.angle_steers_des, angle_offset, \
       self.angle_steers_des_mpc, CP.steerRatio, CP.steerKf, CP.steerKpV[0], CP.steerKiV[0], CP.steerRateCost, PL.PP.l_prob, \
       PL.PP.r_prob, PL.PP.c_prob, PL.PP.p_prob, self.l_poly[0], self.l_poly[1], self.l_poly[2], self.l_poly[3], self.r_poly[0], self.r_poly[1], self.r_poly[2], self.r_poly[3], \
