@@ -36,12 +36,11 @@ def get_can_signals(CP):
       ("WHEEL_SPEED_RR", "WHEEL_SPEEDS", 0),
       ("STEER_ANGLE", "STEERING_SENSORS", 0),
       ("STEER_ANGLE_RATE", "STEERING_SENSORS", 0),
+      ("STEER_ANGLE_OFFSET", "STEERING_SENSORS", 0),
       ("STEER_TORQUE_SENSOR", "STEER_STATUS", 0),
       ("LEFT_BLINKER", "SCM_FEEDBACK", 0),
       ("RIGHT_BLINKER", "SCM_FEEDBACK", 0),
       ("GEAR", "GEARBOX", 0),
-      ("BRAKE_ERROR_1", "STANDSTILL", 1),
-      ("BRAKE_ERROR_2", "STANDSTILL", 1),
       ("SEATBELT_DRIVER_LAMP", "SEATBELT_STATUS", 1),
       ("SEATBELT_DRIVER_LATCHED", "SEATBELT_STATUS", 0),
       ("BRAKE_PRESSED", "POWERTRAIN_DATA", 0),
@@ -63,7 +62,6 @@ def get_can_signals(CP):
       ("STEERING_SENSORS", 100),
       ("SCM_FEEDBACK", 10),
       ("GEARBOX", 100),
-      ("STANDSTILL", 50),
       ("SEATBELT_STATUS", 10),
       ("CRUISE", 10),
       ("POWERTRAIN_DATA", 100),
@@ -84,9 +82,12 @@ def get_can_signals(CP):
     checks += [("GAS_PEDAL_2", 100)]
   else:
     # Nidec signals.
-    signals += [("CRUISE_SPEED_PCM", "CRUISE", 0),
+    signals += [("BRAKE_ERROR_1", "STANDSTILL", 1),
+                ("BRAKE_ERROR_2", "STANDSTILL", 1),
+                ("CRUISE_SPEED_PCM", "CRUISE", 0),
                 ("CRUISE_SPEED_OFFSET", "CRUISE_PARAMS", 0)]
-    checks += [("CRUISE_PARAMS", 50)]
+    checks += [("CRUISE_PARAMS", 50),
+               ("STANDSTILL", 50)]
 
   if CP.carFingerprint in (CAR.ACCORD, CAR.ACCORD_15, CAR.ACCORDH):
     signals += [("DRIVERS_DOOR_OPEN", "SCM_FEEDBACK", 1)]
@@ -205,7 +206,10 @@ class CarState(object):
     self.steer_error = cp.vl["STEER_STATUS"]['STEER_STATUS'] not in [0, 2, 3, 4, 6]
     self.steer_not_allowed = cp.vl["STEER_STATUS"]['STEER_STATUS'] != 0
     self.steer_warning = cp.vl["STEER_STATUS"]['STEER_STATUS'] not in [0, 3]   # 3 is low speed lockout, not worth a warning
-    self.brake_error = cp.vl["STANDSTILL"]['BRAKE_ERROR_1'] or cp.vl["STANDSTILL"]['BRAKE_ERROR_2']
+    if self.CP.radarOffCan:
+      self.brake_error = 0
+    else:
+      self.brake_error = cp.vl["STANDSTILL"]['BRAKE_ERROR_1'] or cp.vl["STANDSTILL"]['BRAKE_ERROR_2']
     self.esp_disabled = cp.vl["VSA_STATUS"]['ESP_DISABLED']
 
     # calc best v_ego estimate, by averaging two opposite corners
@@ -236,7 +240,11 @@ class CarState(object):
       self.user_gas_pressed = self.user_gas > 0 # this works because interceptor read < 0 when pedal position is 0. Once calibrated, this will change
 
     self.gear = 0 if self.CP.carFingerprint == CAR.CIVIC else cp.vl["GEARBOX"]['GEAR']
-    self.angle_steers = cp.vl["STEERING_SENSORS"]['STEER_ANGLE']
+    if self.CP.carFingerprint in  (CAR.CIVIC, CAR.ODYSSEY, CAR.CRV_5G, CAR.ACCORD, CAR.ACCORD_15, CAR.ACCORDH, CAR.CIVIC_HATCH):
+      self.angle_steers = cp.vl["STEERING_SENSORS"]['STEER_ANGLE'] + cp.vl["STEERING_SENSORS"]['STEER_ANGLE_OFFSET']
+    else:
+      self.angle_steers = cp.vl["STEERING_SENSORS"]['STEER_ANGLE']
+
     self.angle_steers_rate = cp.vl["STEERING_SENSORS"]['STEER_ANGLE_RATE']
 
     self.cruise_setting = cp.vl["SCM_BUTTONS"]['CRUISE_SETTING']
