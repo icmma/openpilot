@@ -257,7 +257,7 @@ class LatControl(object):
         self.massage += self.massageStep
       else:
         self.massage -= self.massageStep
-      self.massage = np.clip(self.massage, -0.10, 0.10)
+      self.massage = np.clip(self.massage, -0.20, 0.20)
       self.massageDirection *= -1.0
       if self.frames % int(self.massagePeriod) == 0:
         self.massagePeriodStep += 0.01
