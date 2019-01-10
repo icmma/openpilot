@@ -79,7 +79,7 @@ class CarInterface(object):
     ret.steerReactance = 1.0
     ret.steerInductance = 1.0
     ret.steerResistance = 1.0
-    ret.eonToFront = -0.5
+    ret.eonToFront = 0.5
 
     if candidate == CAR.PRIUS:
       ret.safetyParam = 66  # see conversion factor for STEER_TORQUE_EPS in dbc file

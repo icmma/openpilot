@@ -15,7 +15,7 @@ _DT = 0.01    # 100Hz
 _DT_MPC = 0.05  # 20Hz
 
 def calc_states_after_delay(states, v_ego, steer_angle, curvature_factor, steer_ratio, delay, long_offset):
-  states[0].x = v_ego * delay + long_offset
+  states[0].x = max(0.0, v_ego * delay + long_offset)
   states[0].psi = v_ego * curvature_factor * math.radians(steer_angle) / steer_ratio * delay
   return states
 
