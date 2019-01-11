@@ -236,10 +236,7 @@ class LatControl(object):
       output_steer = self.pid.update(projected_angle_steers_des, self.projected_angle_steers, check_saturation=(v_ego > 10), override=steer_override,
                                      feedforward=self.feed_forward, speed=v_ego, deadzone=deadzone)
 
-      if self.prev_angle_steers == angle_steers:
-        self.min_value += 0.01
-      else:
-        self.min_value = 0.0
+      self.min_value = 0.1
       if -self.min_value < output_steer < self.min_value:
         if output_steer < 0:
           noise_add = -self.min_value - output_steer
