@@ -69,6 +69,7 @@ class LatControl(object):
     self.rough_steers_rate_increment = 0.0
     self.prev_angle_steers = 0.0
     self.calculate_rate = True
+    self.min_value = 0.0
 
     # variables for dashboarding
     self.context = zmq.Context()
@@ -81,7 +82,7 @@ class LatControl(object):
                     'angle_rate=%s,angle_steers=%s,angle_steers_des=%s,self.angle_steers_des_mpc=%s,projected_angle_steers_des=%s,steerRatio=%s,l_prob=%s,' \
                     'r_prob=%s,c_prob=%s,p_prob=%s,l_poly[0]=%s,l_poly[1]=%s,l_poly[2]=%s,l_poly[3]=%s,r_poly[0]=%s,r_poly[1]=%s,r_poly[2]=%s,r_poly[3]=%s,' \
                     'p_poly[0]=%s,p_poly[1]=%s,p_poly[2]=%s,p_poly[3]=%s,c_poly[0]=%s,c_poly[1]=%s,c_poly[2]=%s,c_poly[3]=%s,d_poly[0]=%s,d_poly[1]=%s,' \
-                    'd_poly[2]=%s,lane_width=%s,lane_width_estimate=%s,lane_width_certainty=%s,v_ego=%s,p=%s,i=%s,f=%s %s\n~'
+                    'd_poly[2]=%s,lane_width=%s,lane_width_estimate=%s,lane_width_certainty=%s,v_ego=%s,noise=%s,p=%s,i=%s,f=%s %s\n~'
 
     self.steerdata = self.influxString
     self.frames = 0
@@ -183,6 +184,7 @@ class LatControl(object):
 
     if v_ego < 0.3 or not active:
       output_steer = 0.0
+      noise_add = 0.0
       self.ateer_vibrate = 0.0
       self.feed_forward = 0.0
       self.pid.reset()
@@ -234,6 +236,18 @@ class LatControl(object):
       output_steer = self.pid.update(projected_angle_steers_des, self.projected_angle_steers, check_saturation=(v_ego > 10), override=steer_override,
                                      feedforward=self.feed_forward, speed=v_ego, deadzone=deadzone)
 
+      if self.prev_angle_steers == angle_steers:
+        self.min_value += 0.01
+      else:
+        self.min_value = 0.0
+      if -self.min_value < output_steer < self.min_value:
+        if output_steer < 0:
+          noise_add = -self.min_value - output_steer
+        else:
+          noise_add = self.min_value - output_steer
+      else:
+        noise_add = 0.0
+
       # Hide angle error if being overriden
       if steer_override:
         self.projected_angle_steers = self.mpc_angles[1]
@@ -250,7 +264,7 @@ class LatControl(object):
       capture_all = True
       if self.mpc_updated or capture_all:
         self.frames += 1
-        self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (1, \
+        self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (1, \
         ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, steer_status, steering_control_active, steer_stock_torque, steer_stock_torque_request, \
         cur_time - float(self.last_mpc_ts / 1000000000.0), cur_time - self.mpc_times[0], self.left_change, self.path_change, self.right_change, self.mpc_solution[0].delta[0], self.mpc_solution[0].delta[1], self.mpc_solution[0].delta[2], self.mpc_solution[0].delta[3], self.mpc_solution[0].delta[4], \
         self.mpc_solution[0].delta[5], self.mpc_solution[0].delta[6], self.mpc_solution[0].delta[7], self.mpc_solution[0].delta[8], self.mpc_solution[0].delta[9], \
@@ -261,13 +275,13 @@ class LatControl(object):
         self.l_poly[0], self.l_poly[1], self.l_poly[2], self.l_poly[3], self.r_poly[0], self.r_poly[1], self.r_poly[2], self.r_poly[3], \
         self.p_poly[0], self.p_poly[1], self.p_poly[2], self.p_poly[3], PL.PP.c_poly[0], PL.PP.c_poly[1], PL.PP.c_poly[2], PL.PP.c_poly[3], \
         PL.PP.d_poly[0], PL.PP.d_poly[1], PL.PP.d_poly[2], PL.PP.lane_width, PL.PP.lane_width_estimate, PL.PP.lane_width_certainty, v_ego, \
-        self.pid.p, self.pid.i, self.pid.f, int(time.time() * 100) * 10000000))
+        noise_add, self.pid.p, self.pid.i, self.pid.f, int(time.time() * 100) * 10000000))
 
     self.sat_flag = self.pid.saturated
     self.prev_angle_rate = angle_rate
     self.prev_angle_steers = angle_steers
 
     if CP.steerControlType == car.CarParams.SteerControlType.torque:
-      return output_steer, float(self.angle_steers_des_mpc)
+      return noise_add + output_steer, float(self.angle_steers_des_mpc)
     else:
       return float(self.angle_steers_des_mpc), float(self.angle_steers_des)
