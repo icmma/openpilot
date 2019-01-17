@@ -80,12 +80,15 @@ class CarInterface(object):
       ret.safetyParam = 66  # see conversion factor for STEER_TORQUE_EPS in dbc file
       ret.wheelbase = 2.70
       ret.steerRatio = 15.00   # unknown end-to-end spec
+      #TODO change steer ration for from default 15 to 13.40 for smoothing with VSR
       tire_stiffness_factor = 0.6371   # hand-tune
-      ret.mass = 3045 * CV.LB_TO_KG + std_cargo
+      ret.mass = 3075 * CV.LB_TO_KG + std_cargo . 
+      #values to test default 3045 real 3,075 dash OGprime real weight value 3370 vrprime real weight 3375
       ret.steerKpV, ret.steerKiV = [[0.4], [0.01]]
       ret.steerKf = 0.00006   # full torque for 10 deg at 80mph means 0.00007818594
-      # TODO: Prius seem to have very laggy actuators. Understand if it is lag or hysteresis
-      ret.steerActuatorDelay = 0.25
+      #TODO change steerKF to full torque magic value from default 0.00006 to 0.00007818594
+      ret.steerActuatorDelay = 0.25 
+      #TODO 
 
     elif candidate in [CAR.RAV4, CAR.RAV4H]:
       ret.safetyParam = 73  # see conversion factor for STEER_TORQUE_EPS in dbc file
