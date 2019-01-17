@@ -3,7 +3,7 @@ import math
 from common.numpy_fast import interp
 from selfdrive.controls.lib.latcontrol_helpers import model_polyfit, calc_desired_path, compute_path_pinv
 
-CAMERA_OFFSET = 0.06  # m from center car to camera
+CAMERA_OFFSET = 0.09  # m from center car to camera changed from default 0.06 to 0.09
 
 class PathPlanner(object):
   def __init__(self):
