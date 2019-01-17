@@ -20,7 +20,7 @@ class PathPlanner(object):
     #TODO see docs https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5086749/
     #values for lane width 2.85	3.00	3.25	3.50	3.75
     #it might be best of value is probably less than 3.75 but greater thant 2.85 since 2.85 might be causing issue 
-    #probably 3.00 might work best
+    #probably 3.00 might work best  after doing some more digging more likely 3.25 is the best solution
 
   def update(self, v_ego, md, LaC=None):
     if md is not None:
