@@ -17,6 +17,10 @@ class PathPlanner(object):
     self.lane_width_estimate = 2.85 #changing from 3.7 to 2.85
     self.lane_width_certainty = 1.0
     self.lane_width = 2.85 #changing from 3.7 to 2.85
+    #TODO see docs https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5086749/
+    #values for lane width 2.85	3.00	3.25	3.50	3.75
+    #it might be best of value is probably less than 3.75 but greater thant 2.85 since 2.85 might be causing issue 
+    #probably 3.00 might work best
 
   def update(self, v_ego, md, LaC=None):
     if md is not None:
