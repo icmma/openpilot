@@ -88,7 +88,7 @@ class CarInterface(object):
       ret.steerKf = 0.00006   # full torque for 10 deg at 80mph means 0.00007818594
       #TODO change steerKF to full torque magic value from default 0.00006 to 0.00007818594
       ret.steerActuatorDelay = 0.25 
-      #TODO 
+      #TODO get rid of prius delay to keep stock same
 
     elif candidate in [CAR.RAV4, CAR.RAV4H]:
       ret.safetyParam = 73  # see conversion factor for STEER_TORQUE_EPS in dbc file
