@@ -273,7 +273,7 @@ class CarState(object):
     self.cruise_set_speed = (cp.vl["SCC11"]['VSetDis'] * speed_conv) if self.has_scc else (cp.vl["LVR12"]["CF_Lvr_CruiseSet"] * speed_conv)
     self.standstill = not self.v_wheel > 0.1
 
-    self.angle_steers = cp.vl["SAS11"]['SAS_Angle']
+    self.angle_steers = cp.vl["SAS11"]['SAS_Angle'] + 3.7
     self.angle_steers_rate = cp.vl["SAS11"]['SAS_Speed']
     self.yaw_rate = cp.vl["ESP12"]['YAW_RATE']
     self.main_on = True
