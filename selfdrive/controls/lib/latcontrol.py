@@ -96,7 +96,8 @@ class LatControl(object):
     self.steerpub = self.context.socket(zmq.PUB)
     self.steerpub.bind("tcp://*:8594")
     self.influxString = 'steerData3,testName=none,active=%s,ff_type=%s ff_type_a=%s,ff_type_r=%s,sway=%s,reactance=%s,inductance=%s,resistance=%s,eonToFront=%s,' \
-           'prev_lane_offset=%s,lane_offset_adjustment=%s,lane_change_rate=%s,mpc_age=%s,angle_rate=%s,angle_steers=%s,angle_steers_des=%s,angle_steers_des_mpc=%s,v_ego=%s,c_poly[3]=%s,l_poly[3]=%s,r_poly[3]=%s,p=%s,i=%s,f=%s %s\n~'
+           'driver_offset=%s,lane_change_rate=%s,mpc_age=%s,angle_rate=%s,angle_steers=%s,angle_steers_des=%s,angle_steers_des_mpc=%s,' \
+           'v_ego=%s,psi_delta=%s,lane_changing=%s,psi=%s,d_poly[3]=%s,p_poly[3]=%s,c_poly[3]=%s,l_poly[3]=%s,r_poly[3]=%s,p=%s,i=%s,f=%s %s\n~'
 
 
     self.sine_wave = [ 0.0175, 0.0349, 0.0523, 0.0698, 0.0872, 0.1045, 0.1219, 0.1392, 0.1564, 0.1736, 0.1908, 0.2079, 0.225, 0.2419, 0.2588, 0.2756,
@@ -128,6 +129,10 @@ class LatControl(object):
     self.frames = 0
     self.curvature_factor = 0.0
     self.mpc_frame = 0
+    self.driver_lane_offset = 0.0
+    self.lane_changing = 0
+    self.starting_psi = 0.0
+    self.angle_steer_prev = 0.0
 
   def setup_mpc(self, steer_rate_cost):
     self.libmpc = libmpc_py.libmpc
@@ -258,8 +263,30 @@ class LatControl(object):
                           mpc_time + _DT_MPC,
                           mpc_time + _DT_MPC + _DT_MPC]
 
+        self.angle_steers_des_prev = self.angle_steers_des_mpc
         self.angle_steers_des_mpc = self.mpc_angles[1]
 
+        if not steer_override and self.lane_changing == 0.0:
+          self.driver_lane_offset = 0.0
+          self.starting_psi = self.cur_state[0].psi
+        else:
+          self.driver_lane_offset += (self.cur_state[0].psi - self.starting_psi)
+          if self.lane_changing >= 3.0 and \
+            abs(self.c_poly[3]) < 0.75:
+            self.lane_changing = 0
+          elif 0.0 < self.lane_changing < 3.0 and \
+            abs(self.c_poly[3]) > 0.5 and \
+            self.c_poly[3] * self.driver_lane_offset >= 0.0:
+            self.lane_changing = 3.0
+          elif self.lane_changing == 0.0 and \
+            abs(self.c_poly[3]) > 0.25 and \
+            self.c_poly[3] * self.driver_lane_offset < 0.0 and \
+            self.driver_lane_offset * (self.angle_steers_des_mpc - angle_steers) < 0.0:
+            self.lane_changing = _DT_MPC
+          elif self.lane_changing > 0:
+            self.lane_changing += _DT_MPC
+          elif self.lane_changing > 3.5:
+            self.lane_changing = 0.0
       else:
         self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING, CP.steerRateCost)
         self.cur_state[0].delta = math.radians(angle_steers) / CP.steerRatio
@@ -275,6 +302,7 @@ class LatControl(object):
 
     if v_ego < 0.3 or not active:
       output_steer = 0.0
+      self.lane_changing = 0
       self.ateer_vibrate = 0.0
       self.feed_forward = 0.0
       self.pid.reset()
@@ -328,10 +356,8 @@ class LatControl(object):
       output_steer = self.pid.update(projected_angle_steers_des, self.projected_angle_steers, check_saturation=(v_ego > 10), override=steer_override,
                                      feedforward=self.feed_forward, speed=v_ego, deadzone=deadzone, freeze_integrator=steer_override | (_tuning_stage in (1,2,4)))
 
-      # Hide angle error if being overriden
-      if steer_override:
-        self.projected_angle_steers = self.mpc_angles[1]
-        self.avg_angle_steers = self.mpc_angles[1]
+      if self.lane_changing:
+        output_steer = 0.0
 
       # All but the last 3 lines after here are for real-time dashboarding
       steering_control_active = 0.0
@@ -344,10 +370,11 @@ class LatControl(object):
       capture_all = True
       if self.mpc_updated or capture_all:
         self.frames += 1
-        self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % \
+
+        self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % \
           (1, ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, PL.PP.sway, self.reactance,self.inductance,self.resistance,CP.eonToFront, \
-          self.prev_lane_offset, self.lane_offset_adjustment, self.lane_change_rate, cur_time - float(self.last_mpc_ts / 1000000000.0), float(angle_rate), angle_steers, self.angle_steers_des, self.mpc_angles[1], v_ego, \
-          self.c_poly[3], self.l_poly[3], self.r_poly[3], self.pid.p, self.pid.i, self.pid.f, int(time.time() * 100) * 10000000))
+          self.driver_lane_offset, self.lane_change_rate, cur_time - float(self.last_mpc_ts / 1000000000.0), float(angle_rate), angle_steers, self.angle_steers_des, self.mpc_angles[1], v_ego, \
+          self.cur_state[0].psi - self.starting_psi, self.lane_changing, self.cur_state[0].psi, d_poly[3], self.p_poly[3], self.c_poly[3], self.l_poly[3], self.r_poly[3], self.pid.p, self.pid.i, self.pid.f, int(time.time() * 100) * 10000000))
 
     self.sat_flag = self.pid.saturated
     self.prev_angle_rate = angle_rate

@@ -230,7 +230,7 @@ class CarInterface(object):
       ret.centerToFront = ret.wheelbase * 0.39
       ret.steerRatio = 15.96  # 11.82 is spec end-to-end
       tire_stiffness_factor = 0.8467
-      ret.steerReactance = 1.75
+      ret.steerReactance = 1.5
       ret.steerInductance =  2.25
       ret.steerResistance = 0.5
       ret.eonToFront = 1.0
