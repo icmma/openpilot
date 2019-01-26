@@ -27,7 +27,7 @@ def apply_std_steer_torque_limits(apply_torque, apply_torque_last, driver_torque
 
 def limit_steer_rate(apply_torque, apply_torque_last, LIMITS, driver_torque):
 
-  if abs(driver_torque) > 1.0
+  if abs(driver_torque) > 1.0:
     factor = (abs(driver_torque) * LIMITS.DIVIDER) - 1.0
   else:
     factor = 1.0
