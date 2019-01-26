@@ -87,6 +87,7 @@ class LatControl(object):
     self.test_steer_ratio_delay = 0
     self.test_steer_ratio_sum = 0.0
     self.test_steer_ratio_error = 0.0
+    self.adjusted_steer_ratio = CP.steerRatio
 
 
     # variables for dashboarding
@@ -101,7 +102,7 @@ class LatControl(object):
                     'r_prob=%s,c_prob=%s,p_prob=%s,l_poly[0]=%s,l_poly[1]=%s,l_poly[2]=%s,l_poly[3]=%s,r_poly[0]=%s,r_poly[1]=%s,r_poly[2]=%s,r_poly[3]=%s,' \
                     'p_poly[0]=%s,p_poly[1]=%s,p_poly[2]=%s,p_poly[3]=%s,c_poly[0]=%s,c_poly[1]=%s,c_poly[2]=%s,c_poly[3]=%s,d_poly[0]=%s,d_poly[1]=%s,' \
                     'd_poly[2]=%s,lane_width=%s,lane_width_estimate=%s,lane_width_certainty=%s,v_ego=%s,p=%s,i=%s,f=%s,curvature_factor=%s,VMGetSteerFCurv=%s,' \
-                    'VMCurvF=%s,VMsf=%s,testLaneDrift=%s,testSteerRatio=%s,testSteerRatioError=%s %s\n~'
+                    'VMCurvF=%s,VMsf=%s,testLaneDrift=%s,testSteerRatio=%s,testSteerRatioError=%s,testAdjustedSteerRatio=%s,CPSteerRatio=%s,output_steer=%s %s\n~'
 
     self.steerdata = self.influxString
     self.frames = 0
@@ -169,7 +170,7 @@ class LatControl(object):
 
       # account for actuation delay and the age of the plan
       self.cur_state = calc_states_after_delay(self.cur_state, v_ego, projected_angle_steers, self.curvature_factor,
-                                                      CP.steerRatio, total_delay, CP.eonToFront)
+                                                      self.adjusted_steer_ratio, total_delay, CP.eonToFront)
 
       v_ego_mpc = max(v_ego, 5.0)  # avoid mpc roughness due to low speed
       self.libmpc.run_mpc(self.cur_state, self.mpc_solution,
@@ -182,8 +183,8 @@ class LatControl(object):
       self.mpc_nans = np.any(np.isnan(list(self.mpc_solution[0].delta)))
       if not self.mpc_nans:
         self.mpc_angles = [self.angle_steers_des,
-                          float(math.degrees(self.mpc_solution[0].delta[1] * CP.steerRatio) + angle_offset),
-                          float(math.degrees(self.mpc_solution[0].delta[2] * CP.steerRatio) + angle_offset)]
+                          float(math.degrees(self.mpc_solution[0].delta[1] * self.adjusted_steer_ratio) + angle_offset),
+                          float(math.degrees(self.mpc_solution[0].delta[2] * self.adjusted_steer_ratio) + angle_offset)]
 
         self.mpc_times = [self.angle_steers_des_time,
                           mpc_time + _DT_MPC,
@@ -192,7 +193,7 @@ class LatControl(object):
         self.angle_steers_des_mpc = self.mpc_angles[1]
       else:
         self.libmpc.init(MPC_COST_LAT.PATH, MPC_COST_LAT.LANE, MPC_COST_LAT.HEADING, CP.steerRateCost)
-        self.cur_state[0].delta = math.radians(angle_steers) / CP.steerRatio
+        self.cur_state[0].delta = math.radians(angle_steers) / self.adjusted_steer_ratio
 
         if cur_time > self.last_cloudlog_t + 5.0:
           self.last_cloudlog_t = cur_time
@@ -211,7 +212,7 @@ class LatControl(object):
       self.pid.reset()
       self.angle_steers_des = angle_steers
       self.avg_angle_steers = angle_steers
-      self.cur_state[0].delta = math.radians(angle_steers - angle_offset) / CP.steerRatio
+      self.cur_state[0].delta = math.radians(angle_steers - angle_offset) / self.adjusted_steer_ratio
       self.test_lane_drift = 0.0
       self.test_steer_ratio_error = 0.0
       self.test_steer_ratio_delay = 0
@@ -221,37 +222,30 @@ class LatControl(object):
       self.angle_steers_des_time = cur_time
 
       # Build up lane drift error with a fast resetting integral controller
-      if not steer_override and abs(angle_steers) - float(angle_offset) < 2.0:
-        if abs(PL.PP.c_poly[3]) > 0.1 and abs(PL.PP.c_poly[3] < 0.5):
-          self.test_lane_drift += PL.PP.c_poly[3] / 10
+      if not steer_override and abs(angle_steers):
+        if abs(PL.PP.c_poly[3]) > 0.07 and abs(PL.PP.c_poly[3] < 0.5) and PL.PP.c_prob > 0.75:
+          self.test_lane_drift += PL.PP.c_prob * PL.PP.c_poly[3] / 100.
           self.test_lane_drift = np.clip(self.test_lane_drift, -1.0, 1.0)
-        elif abs(PL.PP.c_poly[3]) < 0.1:
-          if self.test_lane_drift > 0.011:
-            self.test_lane_drift -= 0.01
-          elif self.test_lane_drift < -0.011:
-            self.test_lane_drift += 0.01
+        elif abs(PL.PP.c_poly[3]) < 0.07:
+          if self.test_lane_drift > 0.006:
+            self.test_lane_drift -= 0.005
+        elif self.test_lane_drift < -0.006:
+            self.test_lane_drift += 0.05
       else:
         if self.test_lane_drift > 0.011:
-          self.test_lane_drift -= 0.01
+          self.test_lane_drift -= 0.010
         elif self.test_lane_drift < -0.011:
-          self.test_lane_drift += 0.01
+          self.test_lane_drift += 0.010
 
-      if not steer_override and abs(self.angle_steers_des) - float(angle_offset) - self.test_lane_drift > 2.5:
-          self.test_steer_ratio_delay += 1
-          if self.test_steer_ratio_delay > 49:
-              self.test_steer_ratio_sum += PL.PP.c_poly[3]
-      elif not steer_override and abs(self.angle_steers_des) - float(angle_offset) - self.test_lane_drift < 2.0:
-          if self.test_steer_ratio_delay > 50:
-              self.test_steer_ratio_error = self.test_steer_ratio_sum / (test_steer_ratio_delay - 49)
-          else:
-              self.test_steer_ratio_sum = 0.0
-              self.test_steer_ratio_delay = 0
-      else:
-          self.test_steer_ratio_sum = 0.0
-          self.test_steer_ratio_delay = 0
+      if abs(self.test_lane_drift) > 0.5 and abs(angle_steers) > 2.0:
+          if abs(angle_steers) > 0:
+            self.test_steer_ratio_error += self.test_lane_drift / 1000
+        else:
+            self.test_steer_ratio_error -= self.test_lane_drift / 1000
 
+      self.adjusted_steer_ratio = CP.steerRatio + self.test_steer_ratio_error
       self.avg_angle_steers = (4.0 * self.avg_angle_steers + angle_steers) / 5.0
-      self.cur_state[0].delta = math.radians(self.angle_steers_des - angle_offset) / CP.steerRatio
+      self.cur_state[0].delta = math.radians(self.angle_steers_des - angle_offset + self.test_lane_drift) / self.adjusted_steer_ratio
 
       # Determine the target steer rate for desired angle, but prevent the acceleration limit from being exceeded
       # Restricting the steer rate creates the resistive component needed for resonance
@@ -305,7 +299,7 @@ class LatControl(object):
       capture_all = True
       if self.mpc_updated or capture_all:
         self.frames += 1
-        self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (1, \
+        self.steerdata += ("%d,%s,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%d|" % (1, \
         ff_type, 1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0, steer_status, steering_control_active, steer_stock_torque, steer_stock_torque_request, \
         cur_time - self.mpc_times[0], CAN_RATE, self.left_change, self.path_change, self.right_change, self.mpc_solution[0].delta[0], self.mpc_solution[0].delta[1], self.mpc_solution[0].delta[2], self.mpc_solution[0].delta[3], self.mpc_solution[0].delta[4], \
         self.mpc_solution[0].delta[5], self.mpc_solution[0].delta[6], self.mpc_solution[0].delta[7], self.mpc_solution[0].delta[8], self.mpc_solution[0].delta[9], \
@@ -316,7 +310,7 @@ class LatControl(object):
         self.l_poly[0], self.l_poly[1], self.l_poly[2], self.l_poly[3], self.r_poly[0], self.r_poly[1], self.r_poly[2], self.r_poly[3], \
         self.p_poly[0], self.p_poly[1], self.p_poly[2], self.p_poly[3], PL.PP.c_poly[0], PL.PP.c_poly[1], PL.PP.c_poly[2], PL.PP.c_poly[3], \
         PL.PP.d_poly[0], PL.PP.d_poly[1], PL.PP.d_poly[2], PL.PP.lane_width, PL.PP.lane_width_estimate, PL.PP.lane_width_certainty, v_ego, \
-        self.pid.p, self.pid.i, self.pid.f, self.curvature_factor, VM.gsfc, VM.curvf, VM.sf, self.test_lane_drift, self.test_steer_ratio, self.test_steer_ratio_error, int(time.time() * 100) * 10000000))
+        self.pid.p, self.pid.i, self.pid.f, self.curvature_factor, VM.gsfc, VM.curvf, VM.sf, self.test_lane_drift, self.test_steer_ratio, self.test_steer_ratio_error,self.adjusted_steer_ratio,CP.steerRatio,output_steer, int(time.time() * 100) * 10000000))
 
     self.sat_flag = self.pid.saturated
     self.prev_angle_rate = angle_rate

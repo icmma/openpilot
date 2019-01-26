@@ -19,6 +19,7 @@ class SteerLimitParams:
   STEER_MAX = 255   # >255 results in frozen torque, >409 results in no torque
   STEER_DELTA_UP = 3
   STEER_DELTA_DOWN = 5
+  DIVIDER = 2.0     # Must be > 1.0
 
 class CarController(object):
 
@@ -94,7 +95,7 @@ class CarController(object):
     #  apply_steer = int(round(alca_steer * SteerLimitParams.STEER_MAX))
 
     # Limit steer rate for safety
-    apply_steer = limit_steer_rate(apply_steer, self.apply_steer_last, SteerLimitParams)
+    apply_steer = limit_steer_rate(apply_steer, self.apply_steer_last, SteerLimitParams, CS.steer_torque_driver)
 
     #if alca_enabled:
     #  self.turning_signal_timer = 0
