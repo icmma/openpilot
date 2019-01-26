@@ -21,6 +21,7 @@ class PathPlanner(object):
     #values for lane width 2.85	3.00	3.25	3.50	3.75
     #it might be best of value is probably less than 3.75 but greater thant 2.85 since 2.85 might be causing issue 
     #probably 3.00 might work best  after doing some more digging more likely 3.25 is the best solution
+    #2.85  is perfect for straight lanes however bit buggy on curves just in creased the value by 5 except for 10 or might be 2.95
 
   def update(self, v_ego, md, LaC=None):
     if md is not None:
