@@ -238,10 +238,7 @@ class LatControl(object):
           self.test_lane_drift += 0.010
 
       if abs(self.test_lane_drift) > 0.5 and abs(angle_steers) > 2.0:
-          if abs(angle_steers) > 0:
-            self.test_steer_ratio_error += self.test_lane_drift / 1000
-          else:
-            self.test_steer_ratio_error -= self.test_lane_drift / 1000
+        self.test_steer_ratio_error += self.test_lane_drift / 1000
 
       self.adjusted_steer_ratio = CP.steerRatio + self.test_steer_ratio_error
       self.avg_angle_steers = (4.0 * self.avg_angle_steers + angle_steers) / 5.0
