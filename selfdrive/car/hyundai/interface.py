@@ -71,7 +71,7 @@ class CarInterface(object):
     tireStiffnessRear_civic = 202500
 
     ret.steerReactance = 1.0
-    ret.steerInductance = 1.0
+    ret.steerInductance = 1.2
     ret.steerResistance = 1.0
     ret.eonToFront = 0.5
     ret.steerActuatorDelay = 0.10
@@ -104,14 +104,14 @@ class CarInterface(object):
       ret.mass = 1814
       ret.wheelbase = 2.906
       ret.steerRatio = 11.451
-    elif candidate == CAR.SANTA_FE:
+    elif candidate == CAR.SANTA_FE:  #AWD
       ret.mass = 3982 * CV.LB_TO_KG
       ret.wheelbase = 2.766
-      ret.steerRatio = 13.76 # assume same as Sorento
+      ret.steerRatio = 13.321
     elif candidate == CAR.UNKNOWN:
-      ret.mass = 1800        # non-critical value
-      ret.wheelbase = 2.8    # semi-critical value
-      ret.steerRatio = 13.0  # super-critical value
+      ret.mass = 1800
+      ret.wheelbase = 2.8
+      ret.steerRatio = 13.0
 
     ret.mass += std_cargo
     ret.minEnableSpeed = -1.   # enable is done by stock ACC, so ignore this
