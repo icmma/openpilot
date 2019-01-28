@@ -237,10 +237,15 @@ class LatControl(object):
         elif self.test_lane_drift < -0.011:
           self.test_lane_drift += 0.010
 
-      if abs(self.test_lane_drift) > 0.5 and abs(angle_steers) > 2.0:
-        self.test_steer_ratio_error += self.test_lane_drift / 1000
+      if abs(self.test_lane_drift) > 0.3 and abs(angle_steers - angle_offset) > 2.0:
+        if ((angle_steers - angle_offset) > 0.0 and self.test_lane_drift > 0.0) or \
+                ((angle_steers - angle_offset) < 0.0 and self.test_lane_drift < 0.0):
+            self.test_steer_ratio_error += self.test_lane_drift / 300
+        else:
+            self.test_steer_ratio_error -= self.test_lane_drift / 300
 
       self.adjusted_steer_ratio = CP.steerRatio + self.test_steer_ratio_error
+      print "CP_Ratio", CP.steerRatio, "New Ratio", self.adjusted_steer_ratio
       self.avg_angle_steers = (4.0 * self.avg_angle_steers + angle_steers) / 5.0
       self.cur_state[0].delta = math.radians(self.angle_steers_des - angle_offset + self.test_lane_drift) / self.adjusted_steer_ratio
 
