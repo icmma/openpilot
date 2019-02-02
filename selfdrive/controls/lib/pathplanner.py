@@ -1,3 +1,5 @@
+import numpy as np
+import math
 from common.numpy_fast import interp
 from selfdrive.controls.lib.latcontrol_helpers import model_polyfit, calc_desired_path, compute_path_pinv
 
@@ -8,6 +10,8 @@ class PathPlanner(object):
     self.d_poly = [0., 0., 0., 0.]
     self.c_poly = [0., 0., 0., 0.]
     self.c_prob = 0.
+    self.sway = 0.0
+    self.lane_adjust = 0.0
     self.last_model = 0.
     self.lead_dist, self.lead_prob, self.lead_var = 0, 0, 1
     self._path_pinv = compute_path_pinv()
@@ -23,8 +27,9 @@ class PathPlanner(object):
       r_poly = model_polyfit(md.model.rightLane.points, self._path_pinv)  # right line
 
       # only offset left and right lane lines; offsetting p_poly does not make sense
-      l_poly[3] += CAMERA_OFFSET
-      r_poly[3] += CAMERA_OFFSET
+      #lane_change_offset = self.lane_adjust * (l_poly[3] + r_poly[3]) / 2.0
+      l_poly[3] += CAMERA_OFFSET - self.sway # - lane_change_offset
+      r_poly[3] += CAMERA_OFFSET - self.sway # - lane_change_offset
 
       p_prob = 1.  # model does not tell this probability yet, so set to 1 for now
       l_prob = md.model.leftLane.prob  # left line prob
