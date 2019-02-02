@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import gc
 import zmq
 import numpy as np
 import numpy.matlib
@@ -44,15 +43,16 @@ class EKFV1D(EKF):
     return tf, tfj
 
 
-# fuses camera and radar data for best lead detection
+## fuses camera and radar data for best lead detection
+# FIXME: radard has a memory leak of about 50MB/hr
+# BOUNTY: $100 coupon on shop.comma.ai
 def radard_thread(gctx=None):
-  gc.disable()
   set_realtime_priority(2)
 
   # wait for stats about the car to come in from controls
   cloudlog.info("radard is waiting for CarParams")
   CP = car.CarParams.from_bytes(Params().get("CarParams", block=True))
-  mocked = CP.carName == "mock"
+  mocked = CP.carName == "mock" or CP.carName == "tesla"
   VM = VehicleModel(CP)
   cloudlog.info("radard got CarParams")
 
@@ -143,8 +143,9 @@ def radard_thread(gctx=None):
       ekfv.predict(tsv)
 
       # When changing lanes the distance to the lead car can suddenly change,
-      # which makes the Kalman filter output large relative acceleration
-      if mocked and abs(PP.lead_dist - ekfv.state[XV]) > 2.0:
+      # which makes the Kalman filter output large relative acceleration.
+      # OpenPilot 0.5.6 set this to 2.0 which seems a little too low.
+      if mocked and abs(PP.lead_dist - ekfv.state[XV]) > 2.3:
         ekfv.state[XV] = PP.lead_dist
         ekfv.covar = (np.diag([PP.lead_var, ekfv.var_init]))
         ekfv.state[SPEEDV] = 0.

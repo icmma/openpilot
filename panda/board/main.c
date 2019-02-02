@@ -4,7 +4,6 @@
 // ********************* includes *********************
 
 #include "libc.h"
-#include "safety.h"
 #include "provision.h"
 
 #include "drivers/drivers.h"
@@ -13,12 +12,14 @@
 #include "gpio.h"
 
 #include "drivers/uart.h"
+#include "drivers/lin.h"
 #include "drivers/adc.h"
 #include "drivers/usb.h"
 #include "drivers/gmlan_alt.h"
 #include "drivers/can.h"
 #include "drivers/spi.h"
 #include "drivers/timer.h"
+#include "safety.h"
 
 
 // ***************************** fan *****************************
@@ -285,11 +286,20 @@ int usb_cb_control_msg(USB_Setup_TypeDef *setup, uint8_t *resp, int hardwired) {
         safety_set_mode(setup->b.wValue.w, (int16_t)setup->b.wIndex.w);
         switch (setup->b.wValue.w) {
           case SAFETY_NOOUTPUT:
-            can_silent = ALL_CAN_SILENT;
+            can_silent = ALL_CAN_LIVE;
             break;
           case SAFETY_ELM327:
             can_silent = ALL_CAN_BUT_MAIN_SILENT;
             can_autobaud_enabled[0] = false;
+            break;
+          case SAFETY_TESLA:
+            can_silent = ALL_CAN_LIVE;
+            can_autobaud_enabled[0] = false;
+            can_autobaud_enabled[1] = false;
+            #ifdef PANDA
+              can_autobaud_enabled[2] = false;
+            #endif
+            // MISSING: setup GMLAN pin as output and high level to switch EPAS CAN on Tesla Giraffe
             break;
           default:
             can_silent = ALL_CAN_LIVE;
@@ -559,8 +569,8 @@ int main() {
   usb_init();
 
   // default to silent mode to prevent issues with Ford
-  safety_set_mode(SAFETY_NOOUTPUT, 0);
-  can_silent = ALL_CAN_SILENT;
+  safety_set_mode(SAFETY_TESLA, 0);
+  can_silent = ALL_CAN_LIVE;
   can_init_all();
 
   adc_init();
@@ -589,6 +599,8 @@ int main() {
     uint64_t marker = 0;
     #define CURRENT_THRESHOLD 0xF00
     #define CLICKS 8
+    // Enough clicks to ensure that enumeration happened. Should be longer than bootup time of the device connected to EON
+    #define CLICKS_BOOTUP 30
   #endif
 
   for (cnt=0;;cnt++) {
@@ -615,8 +627,8 @@ int main() {
           }
           break;
         case USB_POWER_CDP:
-          // been CLICKS clicks since we switched to CDP
-          if ((cnt-marker) >= CLICKS) {
+          // been CLICKS_BOOTUP clicks since we switched to CDP
+          if ((cnt-marker) >= CLICKS_BOOTUP ) {
             // measure current draw, if positive and no enumeration, switch to DCP
             if (!is_enumerated && current < CURRENT_THRESHOLD) {
               puts("USBP: no enumeration with current draw, switching to DCP mode\n");

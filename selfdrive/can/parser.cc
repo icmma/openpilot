@@ -105,7 +105,12 @@ struct MessageState {
         tmp -= (tmp >> (sig.b2-1)) ? (1ULL << sig.b2) : 0; //signed
       }
 
-      DEBUG("parse %X %s -> %lld\n", address, sig.name, tmp);
+      // Testing both little and big endian signals (Tesla messages)
+      //if ( (address == 0x318) || (address == 0x118)) {
+      //  INFO("parse %X %s -> %f, dat -> %lX\n", address, sig.name, tmp * sig.factor + sig.offset, dat);
+      //}
+
+			DEBUG("parse %X %s -> %lld\n", address, sig.name, tmp);
 
       if (sig.type == SignalType::HONDA_CHECKSUM) {
         if (honda_checksum(address, dat, size) != tmp) {
@@ -176,6 +181,14 @@ class CANParser {
     const char *tcp_addr_char = tcp_addr_str.c_str();
 
     zmq_connect(subscriber, tcp_addr_char);
+
+    // drain sendcan to delete any stale messages from previous runs
+    zmq_msg_t msgDrain;
+    zmq_msg_init(&msgDrain);
+    int err = 0;
+    while(err >= 0) {
+      err = zmq_msg_recv(&msgDrain, subscriber, ZMQ_DONTWAIT);
+    }
 
     dbc = dbc_lookup(dbc_name);
     assert(dbc);
