@@ -274,7 +274,7 @@ def state_control(plan, CS, CP, state, events, v_cruise_kph, v_cruise_kph_last, 
                                               v_cruise_kph, plan.vTarget, plan.vTargetFuture, plan.aTarget,
                                               CP, PL.lead_1)
   # Steering PID loop and lateral MPC
-  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate, 
+  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate,
                                                      CS.steeringPressed, plan.dPoly, angle_offset, CP, VM, PL)
 
   # Send a "steering required alert" if saturation count has reached the limit
@@ -429,6 +429,12 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
   gps_location = messaging.sub_sock(context, service_list['gpsLocationExternal'].port, conflate=True, poller=poller)
   logcan = messaging.sub_sock(context, service_list['can'].port)
 
+  synchronizer = context.socket(zmq.SUB)
+  synchronizer.connect ("tcp://localhost:8591")
+  synchronizer.setsockopt(zmq.SUBSCRIBE, b"")
+  poller2 = zmq.Poller()
+  poller2.register(synchronizer, zmq.POLLIN)
+
   CC = car.CarControl.new_message()
   CI, CP = get_car(logcan, sendcan, 1.0 if passive else None)
 
@@ -485,6 +491,8 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
       pass
 
   prof = Profiler(False)  # off by default
+  prevUpdate = 0
+  prevControl = 0
 
   while True:
     prof.checkpoint("Ratekeeper", ignore=True)
@@ -513,6 +521,19 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
     CC = data_send(PL.perception_state, plan, plan_ts, CS, CI, CP, VM, state, events, actuators, v_cruise_kph, rk, carstate, carcontrol,
                    live100, livempc, AM, driver_status, LaC, LoC, angle_offset, passive)
     prof.checkpoint("Sent")
+
+    socks = dict(poller2.poll(0))
+    for sock in socks:
+      if sock is synchronizer:
+        syncstr = sock.recv(zmq.NOBLOCK)
+        syncdata = syncstr.split(' ')
+        lastControl = int(syncdata[0])
+        lastUpdate = int(syncdata[1]) + 65536
+        print((sec_since_boot() * 1e9 - lastControl) % 10000, (lastControl - prevControl), (lastUpdate - prevUpdate) % 65536)
+        prevUpdate = lastUpdate % 65536
+        prevControl = lastControl
+      else:
+        print("none")
 
     rk.keep_time()  # Run at 100Hz
     prof.display()
