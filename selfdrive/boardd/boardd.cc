@@ -208,11 +208,15 @@ void handle_usb_issue(int err, const char func[]) {
   // TODO: check other errors, is simply retrying okay?
 }
 
-void can_recv(void *s) {
+int can_recv(void *s, void *sync) {
   int err;
   uint32_t data[RECV_SIZE/4];
   int recv;
   uint32_t f1, f2;
+  uint16_t firsttime = 0xFFFF;
+  int32_t synctime = -1;
+  uint16_t lasttime = 0;
+  uint16_t thistime = 0;
 
   // do recv
   pthread_mutex_lock(&usb_lock);
@@ -230,7 +234,7 @@ void can_recv(void *s) {
 
   // return if length is 0
   if (recv <= 0) {
-    return;
+    return -1;
   }
 
   // create message
@@ -254,13 +258,47 @@ void can_recv(void *s) {
     int len = data[i*4+1]&0xF;
     canData[i].setDat(kj::arrayPtr((uint8_t*)&data[i*4+2], len));
     canData[i].setSrc((data[i*4+1] >> 4) & 0xff);
+
+    thistime = canData[i].getBusTime();
+    if (thistime < firsttime) {
+      firsttime = thistime;
+    }
+    if (thistime > lasttime) {
+      lasttime = thistime;
+    }
+    if (canData[i].getAddress() == 330) {
+      synctime = thistime;
+    }
   }
 
   // send to can
   auto words = capnp::messageToFlatArray(msg);
   auto bytes = words.asBytes();
   zmq_send(s, bytes.begin(), bytes.size(), 0);
+
+  if (synctime >= 0) {
+    //Synchronize(sync, firsttime, synctime, lasttime, nanos_since_boot());
+    std::string canOut = "";
+    canOut = std::to_string(nanos_since_boot()) + " " + std::to_string(firsttime) + " " + std::to_string(synctime) + " " + std::to_string(lasttime);
+    zmq_send(sync, canOut.data(), canOut.size(), 0);
+    //printf("%s\n", canOut.c_str());
+    if (lasttime - firsttime < 30000) {
+      return int((100 * (synctime - firsttime)) / (lasttime - firsttime));
+    }
+    else {
+      return 50;
+    }
+  }
+  else {
+    return -1;
+  }
 }
+
+/*void Synchronize(void *sync, uint16_t firstTime, uint16_t syncTime, uint16_t lastTime, uint64_t nanos) {
+  std::string canOut = "";
+  canOut = std::to_string(nanos) + " " + std::to_string(firstTime) + " " + std::to_string(syncTime) + " " + std::to_string(lastTime);
+  zmq_send(sync, canOut.data(), canOut.size(), 0);
+}*/
 
 void can_health(void *s) {
   int cnt;
@@ -435,11 +473,40 @@ void *can_recv_thread(void *crap) {
   void *publisher = zmq_socket(context, ZMQ_PUB);
   zmq_bind(publisher, "tcp://*:8006");
 
+  void *synchronizer = zmq_socket(context, ZMQ_PUB);
+  zmq_bind(synchronizer, "tcp://*:8591");
+
+  int steerIndex;
+
+  uint64_t startTime;
+  int process_time;
+  int sleepTime;
+  bool fixedTime = true;
+  sleepTime = 5000;
+
+
   // run at ~200hz
   while (!do_exit) {
-    can_recv(publisher);
-    // 5ms
-    usleep(5*1000);
+    startTime = nanos_since_boot();
+    steerIndex = can_recv(publisher, synchronizer);
+
+    if (steerIndex == -1) {
+      fixedTime = true;
+      usleep(5000);
+      //printf("process: %d\n", process_time );
+    }
+    else {
+      process_time = 0.0001 * (nanos_since_boot() - startTime);
+      if (fixedTime == true && steerIndex < 50 && sleepTime > (5000 - 4 * process_time)) {
+        sleepTime -= 10;
+      }
+      else if (fixedTime == true && steerIndex > 50 && sleepTime < (5000 - process_time)) {
+        sleepTime += 1;
+      }
+      fixedTime = false;
+      //printf("sleep: %d\n", sleepTime);
+      usleep(sleepTime);
+    }
   }
   return NULL;
 }

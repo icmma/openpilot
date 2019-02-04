@@ -169,9 +169,6 @@ class CANParser {
     forwarder = zmq_socket(context, ZMQ_PUB);
     zmq_bind(forwarder, "tcp://*:8592");
 
-    synchronizer = zmq_socket(context, ZMQ_PUB);
-    zmq_bind(synchronizer, "tcp://*:8591");
-
     std::string tcp_addr_str;
 
     if (sendcan) {
@@ -282,9 +279,6 @@ class CANParser {
 
         state_it->second.parse(sec, cmsg.getBusTime(), p);
 
-        if (cmsg.getAddress() == 330) {
-          Synchronize(sec, cmsg.getBusTime());
-        }
       }
   }
 
@@ -301,12 +295,6 @@ class CANParser {
           }
           zmq_send(forwarder, canOut.data(), canOut.size(), 0);
       }
-  }
-
-  void Synchronize(uint64_t sec, uint16_t busTime) {
-    std::string canOut = "";
-    canOut = std::to_string(sec) + " " + std::to_string(busTime);
-    zmq_send(synchronizer, canOut.data(), canOut.size(), 0);
   }
 
   void UpdateValid(uint64_t sec) {
@@ -390,7 +378,6 @@ class CANParser {
   void *subscriber = NULL;
 
   void *forwarder = NULL;
-  void *synchronizer = NULL;
   uint64_t can_forward_period_ns = 100000000;
   uint64_t next_can_forward_ns = 0;
   std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint64_t>> raw_can_values;

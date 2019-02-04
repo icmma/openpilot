@@ -1,5 +1,7 @@
 import math
 import numpy as np
+import csv
+import time
 from selfdrive.controls.lib.pid import PIController
 from selfdrive.controls.lib.drive_helpers import MPC_COST_LAT
 from selfdrive.controls.lib.lateral_mpc import libmpc_py
@@ -7,6 +9,7 @@ from common.numpy_fast import interp
 from common.realtime import sec_since_boot
 from selfdrive.swaglog import cloudlog
 from cereal import car
+import os, os.path
 
 _DT = 0.01    # 100Hz
 _DT_MPC = 0.05  # 20Hz
@@ -69,6 +72,19 @@ class LatControl(object):
     self.rough_steers_rate = 0.0
     self.prev_angle_steers = 0.0
     self.calculate_rate = True
+    # variables for dashboarding
+    DIR = '/sdcard/csv'
+    try:
+      os.mkdir(DIR)
+    except:
+      pass
+
+    self.filenumber = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
+    self.dash_file = open(DIR + '/dashboard_file_%d.csv' % self.filenumber, mode='w')
+    self.dash_writer = csv.writer(self.dash_file, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE)
+    self.dash_writer.writerow(['angle_steers_des','angle_steers_des_mpc','angle_steers','angle_rate','v_ego','steer_override',
+                    'p','i','f','sync0','sync1','sync2','sync3','cur_time','time'])
+                    #'p','i','f','sync0','sync1','sync2','sync3','sync4','sync5','sync6','sync7','cur_time','time'])
 
   def setup_mpc(self, steer_rate_cost):
     self.libmpc = libmpc_py.libmpc
@@ -88,7 +104,7 @@ class LatControl(object):
   def reset(self):
     self.pid.reset()
 
-  def update(self, active, v_ego, angle_steers, angle_rate, steer_override, d_poly, angle_offset, CP, VM, PL):
+  def update(self, active, v_ego, angle_steers, angle_rate, sync_offset, steer_override, d_poly, angle_offset, CP, VM, PL):
     self.mpc_updated = False
 
     if angle_rate == 0.0 and self.calculate_rate:
@@ -113,7 +129,7 @@ class LatControl(object):
     if self.last_mpc_ts < PL.last_md_ts:
       self.last_mpc_ts = PL.last_md_ts
       cur_time = sec_since_boot()
-      mpc_time = float(self.last_mpc_ts / 1000000000.0)
+      mpc_time = float(self.last_mpc_ts * 1e-9)
       curvature_factor = VM.curvature_factor(v_ego)
 
       # Determine future angle steers using steer rate
@@ -205,6 +221,21 @@ class LatControl(object):
         # Use projected desired and actual angles instead of "current" values, in order to make PI more reactive (for resonance)
         output_steer = self.pid.update(projected_angle_steers_des, projected_angle_steers, check_saturation=(v_ego > 10),
                                         override=steer_override, feedforward=self.feed_forward, speed=v_ego, deadzone=deadzone)
+
+        receiveTime = int(time.time() * 1000)
+        self.dash_writer.writerow([str(round(self.angle_steers_des, 2)),
+                              str(round(self.mpc_angles[1], 2)),
+                              str(round(angle_steers, 2)),
+                              str(round(float(angle_rate), 1)),
+                              str(round(v_ego, 1)),
+                              1 if steer_override else 0,
+                              str(round(self.pid.p, 4)),
+                              str(round(self.pid.i, 4)),
+                              str(round(self.pid.f, 4)),
+                              str(sync_offset[0]),str(sync_offset[1]),
+                              str(sync_offset[2]),str(sync_offset[3]),
+                              cur_time,
+                              str(receiveTime)])
 
     self.sat_flag = self.pid.saturated
     self.prev_angle_rate = angle_rate
