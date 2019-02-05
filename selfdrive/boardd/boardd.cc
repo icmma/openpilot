@@ -454,7 +454,7 @@ void *can_recv_thread(void *crap) {
   while (!do_exit) {
     can_recv(publisher);
     endTime = 1e-3 * nanos_since_boot();
-    startTime += 10204;
+    startTime += 12670;
     if (startTime > endTime) usleep(startTime - endTime);
   }
   return NULL;
