@@ -303,7 +303,7 @@ class CANParser {
 
     // multiple recv is fine
     bool first = wait;
-    while (wait) {
+    while (first) {
       if (first) {
         err = zmq_msg_recv(&msg, subscriber, 0);
         first = false;
