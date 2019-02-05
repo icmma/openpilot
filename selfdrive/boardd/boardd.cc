@@ -477,36 +477,69 @@ void *can_recv_thread(void *crap) {
   zmq_bind(synchronizer, "tcp://*:8591");
 
   int steerIndex;
+  int steerMissedCount = 0;
 
-  uint64_t startTime;
-  int process_time;
-  int sleepTime;
+  uint64_t startTime, endTime, steerTime, endSleepTime;
+  int process_time, error_time;
+  int sleepError;
   bool fixedTime = true;
-  sleepTime = 5000;
-
+  //sleepTime = 5000;
+  startTime = 1e-3 * nanos_since_boot();
+  process_time = 5000;
 
   // run at ~200hz
   while (!do_exit) {
-    startTime = nanos_since_boot();
-    steerIndex = can_recv(publisher, synchronizer);
 
-    if (steerIndex == -1) {
-      fixedTime = true;
-      usleep(5000);
-      //printf("process: %d\n", process_time );
+    steerIndex = can_recv(publisher, synchronizer); /* + can_recv(publisher, synchronizer);
+
+    endTime = 1e-3 * nanos_since_boot();
+    if (steerIndex <= -2) {
+      steerMissedCount += 1;
     }
     else {
-      process_time = 0.0001 * (nanos_since_boot() - startTime);
-      if (fixedTime == true && steerIndex < 50 && sleepTime > (5000 - 4 * process_time)) {
-        sleepTime -= 10;
-      }
-      else if (fixedTime == true && steerIndex > 50 && sleepTime < (5000 - process_time)) {
-        sleepTime += 1;
-      }
-      fixedTime = false;
-      //printf("sleep: %d\n", sleepTime);
-      usleep(sleepTime);
+      printf("process_time: %lu\n", (endTime - steerTime));
+      steerTime = endTime;
+      steerMissedCount = 0;
     }
+    if (steerMissedCount >= 2) printf("missed: %d\n", steerMissedCount);*/
+
+    endTime = 1e-3 * nanos_since_boot();
+    startTime += 10200;  //6250;  // 5000;
+    if (startTime > endTime) usleep(startTime - endTime);
+
+    /*if (startTime < (1e-3 * nanos_since_boot())) {
+      sleepError += 5;\
+    }
+    else {
+      sleepError -= 1;
+    }
+    while(startTime > nanos_since_boot()) {
+      printf("                   waiting!");
+    }*/
+
+
+    /*startTime = 1e-3 * nanos_since_boot();
+    error_time = (startTime - endTime) - (5000 - process_time);
+    steerIndex = can_recv(publisher, synchronizer);
+    endTime = 1e-3 * nanos_since_boot();
+    process_time = endTime - startTime;
+
+    if (process_time > 5000) process_time = 0;
+    if (steerIndex == -1) {
+      steerMissedCount += 1;
+    }
+    else {
+      printf("process_time: %d  %d  %lu\n", process_time, error_time, (endTime - steerTime));
+      steerTime = endTime;
+      steerMissedCount = 0;
+    }
+    if (steerMissedCount < 2) {
+      usleep(5000 - process_time - error_time);
+    }
+    else {
+      printf("missed: %d\n", steerMissedCount);
+      usleep(5000 - process_time - error_time);
+    }*/
   }
   return NULL;
 }

@@ -318,19 +318,19 @@ class CANParser {
     zmq_msg_init(&msg);
 
     // multiple recv is fine
-    bool first = wait;
-    while (1) {
-      if (first) {
+    int CANReceived = 0;
+    while (wait) {
+      if (wait == true && CANReceived < 1) {
         err = zmq_msg_recv(&msg, subscriber, 0);
-        first = false;
       } else {
         err = zmq_msg_recv(&msg, subscriber, ZMQ_DONTWAIT);
       }
       if (err < 0) break;
+      CANReceived += 1;
 
       // format for board, make copy due to alignment issues, will be freed on out of scope
       auto amsg = kj::heapArray<capnp::word>((zmq_msg_size(&msg) / sizeof(capnp::word)) + 1);
-      memcpy(amsg.begin(), zmq_msg_data(&msg), zmq_msg_size(&msg));
+      memcpy(amsg.begin(), zmq_msg_data(&msg), zmq_msg_size(&msg)); 
 
       // extract the messages
       capnp::FlatArrayMessageReader cmsg(amsg);
@@ -341,6 +341,8 @@ class CANParser {
       UpdateCans(sec, cans);
     }
 
+    if (CANReceived == 3) printf("      %d CANs received!\n", CANReceived);
+    if (CANReceived == 1 || CANReceived > 3) printf("             %d CANs received!\n", CANReceived);
     if (can_forward_period_ns > 0) ForwardCANData(sec);
 
     UpdateValid(sec);

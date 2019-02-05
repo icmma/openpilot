@@ -521,6 +521,7 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
 
     #rk.keep_time()  # Run at 100Hz
 
+    '''
     wait_start = sec_since_boot()
     socks = dict(poller2.poll(100))
     for sock in socks:
@@ -545,6 +546,7 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
       syncstr = sock.recv(zmq.NOBLOCK)
       print("missed!   " + syncstr)
     wait_end = sec_since_boot()
+    '''
 
     # Publish data
     CC = data_send(PL.perception_state, plan, plan_ts, CS, CI, CP, VM, state, events, actuators, v_cruise_kph, rk, carstate, carcontrol,

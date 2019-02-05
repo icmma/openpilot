@@ -101,6 +101,7 @@ class Ratekeeper(object):
     self._next_frame_time += self._interval + time_offset
     if remaining < -self._print_delay_threshold:
       print("%s lagging by %.2f ms" % (self._process_name, -remaining * 1000))
+      if (-remaining) > self._interval: self._next_frame_time += self._interval
       lagged = True
     self._frame += 1
     self._remaining = remaining
