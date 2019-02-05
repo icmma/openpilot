@@ -274,7 +274,7 @@ def state_control(plan, CS, CP, state, events, v_cruise_kph, v_cruise_kph_last, 
                                               v_cruise_kph, plan.vTarget, plan.vTargetFuture, plan.aTarget,
                                               CP, PL.lead_1)
   # Steering PID loop and lateral MPC
-  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate, 
+  actuators.steer, actuators.steerAngle = LaC.update(active, CS.vEgo, CS.steeringAngle, CS.steeringRate,
                                                      CS.steeringPressed, plan.dPoly, angle_offset, CP, VM, PL)
 
   # Send a "steering required alert" if saturation count has reached the limit
@@ -521,7 +521,7 @@ def controlsd_thread(gctx=None, rate=100, default_bias=0.):
                    live100, livempc, AM, driver_status, LaC, LoC, angle_offset, passive, start_time)
     prof.checkpoint("Sent")
 
-    rk.keep_time()  # Run at 100Hz
+    #rk.keep_time()  # Run at 100Hz
     prof.display()
 
 

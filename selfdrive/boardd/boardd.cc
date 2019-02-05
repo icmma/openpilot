@@ -447,11 +447,15 @@ void *can_recv_thread(void *crap) {
   void *publisher = zmq_socket(context, ZMQ_PUB);
   zmq_bind(publisher, "tcp://*:8006");
 
-  // run at ~200hz
+  uint64_t startTime, endTime;
+  startTime = 1e-3 * nanos_since_boot();
+
+  // run at exactly 98hz
   while (!do_exit) {
     can_recv(publisher);
-    // 5ms
-    usleep(5*1000);
+    endTime = 1e-3 * nanos_since_boot();
+    startTime += 10204;
+    if (startTime > endTime) usleep(startTime - endTime);
   }
   return NULL;
 }
