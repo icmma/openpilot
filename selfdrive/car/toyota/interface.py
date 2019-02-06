@@ -76,6 +76,11 @@ class CarInterface(object):
     ret.steerKiBP, ret.steerKpBP = [[0.], [0.]]
     ret.steerActuatorDelay = 0.12  # Default delay, Prius has larger delay
 
+    ret.steerReactance = 0.7
+    ret.steerInductance = 1.0
+    ret.steerResistance = 1.0
+    ret.eonToFront = 0.5
+
     if candidate == CAR.PRIUS:
       ret.safetyParam = 66  # see conversion factor for STEER_TORQUE_EPS in dbc file
       ret.wheelbase = 2.70
@@ -86,6 +91,7 @@ class CarInterface(object):
       ret.steerKf = 0.00006   # full torque for 10 deg at 80mph means 0.00007818594
       # TODO: Prius seem to have very laggy actuators. Understand if it is lag or hysteresis
       ret.steerActuatorDelay = 0.25
+      ret.eonToFront = 0.0
 
     elif candidate in [CAR.RAV4, CAR.RAV4H]:
       ret.safetyParam = 73  # see conversion factor for STEER_TORQUE_EPS in dbc file
@@ -186,6 +192,7 @@ class CarInterface(object):
     ret.enableCamera = not check_ecu_msgs(fingerprint, ECU.CAM)
     ret.enableDsu = not check_ecu_msgs(fingerprint, ECU.DSU)
     ret.enableApgs = False #not check_ecu_msgs(fingerprint, ECU.APGS)
+    ret.openpilotLongitudinalControl = ret.enableCamera and ret.enableDsu
     cloudlog.warn("ECU Camera Simulated: %r", ret.enableCamera)
     cloudlog.warn("ECU DSU Simulated: %r", ret.enableDsu)
     cloudlog.warn("ECU APGS Simulated: %r", ret.enableApgs)

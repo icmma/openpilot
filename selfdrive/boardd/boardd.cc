@@ -208,11 +208,15 @@ void handle_usb_issue(int err, const char func[]) {
   // TODO: check other errors, is simply retrying okay?
 }
 
-void can_recv(void *s) {
+int can_recv(void *s, void *sync) {
   int err;
   uint32_t data[RECV_SIZE/4];
   int recv;
   uint32_t f1, f2;
+  uint16_t firsttime = 0xFFFF;
+  int32_t synctime = -1;
+  uint16_t lasttime = 0;
+  uint16_t thistime = 0;
 
   // do recv
   pthread_mutex_lock(&usb_lock);
@@ -230,7 +234,7 @@ void can_recv(void *s) {
 
   // return if length is 0
   if (recv <= 0) {
-    return;
+    return -1;
   }
 
   // create message
@@ -254,13 +258,47 @@ void can_recv(void *s) {
     int len = data[i*4+1]&0xF;
     canData[i].setDat(kj::arrayPtr((uint8_t*)&data[i*4+2], len));
     canData[i].setSrc((data[i*4+1] >> 4) & 0xff);
+
+    thistime = canData[i].getBusTime();
+    if (thistime < firsttime) {
+      firsttime = thistime;
+    }
+    if (thistime > lasttime) {
+      lasttime = thistime;
+    }
+    if (canData[i].getAddress() == 330) {
+      synctime = thistime;
+    }
   }
 
   // send to can
   auto words = capnp::messageToFlatArray(msg);
   auto bytes = words.asBytes();
   zmq_send(s, bytes.begin(), bytes.size(), 0);
+
+  if (synctime >= 0) {
+    //Synchronize(sync, firsttime, synctime, lasttime, nanos_since_boot());
+    std::string canOut = "";
+    canOut = std::to_string(nanos_since_boot()) + " " + std::to_string(firsttime) + " " + std::to_string(synctime) + " " + std::to_string(lasttime);
+    zmq_send(sync, canOut.data(), canOut.size(), 0);
+    //printf("%s\n", canOut.c_str());
+    if (lasttime - firsttime < 30000) {
+      return int((100 * (synctime - firsttime)) / (lasttime - firsttime));
+    }
+    else {
+      return 50;
+    }
+  }
+  else {
+    return -1;
+  }
 }
+
+/*void Synchronize(void *sync, uint16_t firstTime, uint16_t syncTime, uint16_t lastTime, uint64_t nanos) {
+  std::string canOut = "";
+  canOut = std::to_string(nanos) + " " + std::to_string(firstTime) + " " + std::to_string(syncTime) + " " + std::to_string(lastTime);
+  zmq_send(sync, canOut.data(), canOut.size(), 0);
+}*/
 
 void can_health(void *s) {
   int cnt;
@@ -435,11 +473,73 @@ void *can_recv_thread(void *crap) {
   void *publisher = zmq_socket(context, ZMQ_PUB);
   zmq_bind(publisher, "tcp://*:8006");
 
+  void *synchronizer = zmq_socket(context, ZMQ_PUB);
+  zmq_bind(synchronizer, "tcp://*:8591");
+
+  int steerIndex;
+  int steerMissedCount = 0;
+
+  uint64_t startTime, endTime, steerTime, endSleepTime;
+  int process_time, error_time;
+  int sleepError;
+  bool fixedTime = true;
+  //sleepTime = 5000;
+  startTime = 1e-3 * nanos_since_boot();
+  process_time = 5000;
+
   // run at ~200hz
   while (!do_exit) {
-    can_recv(publisher);
-    // 5ms
-    usleep(5*1000);
+
+    steerIndex = can_recv(publisher, synchronizer); /* + can_recv(publisher, synchronizer);
+
+    endTime = 1e-3 * nanos_since_boot();
+    if (steerIndex <= -2) {
+      steerMissedCount += 1;
+    }
+    else {
+      printf("process_time: %lu\n", (endTime - steerTime));
+      steerTime = endTime;
+      steerMissedCount = 0;
+    }
+    if (steerMissedCount >= 2) printf("missed: %d\n", steerMissedCount);*/
+
+    endTime = 1e-3 * nanos_since_boot();
+    startTime += 10200;  //6250;  // 5000;
+    if (startTime > endTime) usleep(startTime - endTime);
+
+    /*if (startTime < (1e-3 * nanos_since_boot())) {
+      sleepError += 5;\
+    }
+    else {
+      sleepError -= 1;
+    }
+    while(startTime > nanos_since_boot()) {
+      printf("                   waiting!");
+    }*/
+
+
+    /*startTime = 1e-3 * nanos_since_boot();
+    error_time = (startTime - endTime) - (5000 - process_time);
+    steerIndex = can_recv(publisher, synchronizer);
+    endTime = 1e-3 * nanos_since_boot();
+    process_time = endTime - startTime;
+
+    if (process_time > 5000) process_time = 0;
+    if (steerIndex == -1) {
+      steerMissedCount += 1;
+    }
+    else {
+      printf("process_time: %d  %d  %lu\n", process_time, error_time, (endTime - steerTime));
+      steerTime = endTime;
+      steerMissedCount = 0;
+    }
+    if (steerMissedCount < 2) {
+      usleep(5000 - process_time - error_time);
+    }
+    else {
+      printf("missed: %d\n", steerMissedCount);
+      usleep(5000 - process_time - error_time);
+    }*/
   }
   return NULL;
 }
