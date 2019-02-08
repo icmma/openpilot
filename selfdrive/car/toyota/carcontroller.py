@@ -1,6 +1,8 @@
+from common.realtime import sec_since_boot
 from cereal import car
 from common.numpy_fast import clip, interp
 from selfdrive.boardd.boardd import can_list_to_can_capnp
+from selfdrive.car import apply_toyota_steer_torque_limits
 from selfdrive.car.toyota.toyotacan import make_can_msg, create_video_target,\
                                            create_steer_command, create_ui_command, \
                                            create_ipas_steer_command, create_accel_command, \
@@ -16,14 +18,16 @@ ACCEL_HYST_GAP = 0.02  # don't change accel command for small oscilalitons withi
 ACCEL_MAX = 1.5  # 1.5 m/s2
 ACCEL_MIN = -3.0 # 3   m/s2
 ACCEL_SCALE = max(ACCEL_MAX, -ACCEL_MIN)
+STEER_INTERVAL = 1 / 100.0 # Hz
 
 # Steer torque limits
-STEER_MAX = 1500
-STEER_DELTA_UP = 10       # 1.5s time to peak torque
-STEER_DELTA_DOWN = 25     # always lower than 45 otherwise the Rav4 faults (Prius seems ok with 50)
-STEER_ERROR_MAX = 350     # max delta between torque cmd and torque motor
+class SteerLimitParams:
+  STEER_MAX = 1500
+  STEER_DELTA_UP = 10       # 1.5s time to peak torque
+  STEER_DELTA_DOWN = 25     # always lower than 45 otherwise the Rav4 faults (Prius seems ok with 50)
+  STEER_ERROR_MAX = 350     # max delta between torque cmd and torque motor
 
-# Steer angle limits (tested at the Crows Landing track and considered ok)
+# Steer angle limits (tested at the Crows Landing track and considered ok) 
 ANGLE_MAX_BP = [0., 5.]
 ANGLE_MAX_V = [510., 300.]
 ANGLE_DELTA_BP = [0., 5., 15.]
@@ -113,6 +117,7 @@ class CarController(object):
     self.steer_angle_enabled = False
     self.ipas_reset_counter = 0
     self.last_fault_frame = -200
+    self.next_steer_time = 0.0
 
     self.fake_ecus = set()
     if enable_camera: self.fake_ecus.add(ECU.CAM)
@@ -122,7 +127,7 @@ class CarController(object):
     self.packer = CANPacker(dbc_name)
 
   def update(self, sendcan, enabled, CS, frame, actuators,
-             pcm_cancel_cmd, hud_alert, audible_alert, forwarding_camera):
+             pcm_cancel_cmd, hud_alert, audible_alert, forwarding_camera, left_line, right_line, lead):
 
     # *** compute control surfaces ***
 
@@ -132,23 +137,13 @@ class CarController(object):
     apply_accel = clip(apply_accel * ACCEL_SCALE, ACCEL_MIN, ACCEL_MAX)
 
     # steer torque
-    apply_steer = int(round(actuators.steer * STEER_MAX))
+    apply_steer = int(round(actuators.steer * SteerLimitParams.STEER_MAX))
 
-    max_lim = min(max(CS.steer_torque_motor + STEER_ERROR_MAX, STEER_ERROR_MAX), STEER_MAX)
-    min_lim = max(min(CS.steer_torque_motor - STEER_ERROR_MAX, -STEER_ERROR_MAX), -STEER_MAX)
+    apply_steer = apply_toyota_steer_torque_limits(apply_steer, self.last_steer, CS.steer_torque_motor, SteerLimitParams)
 
-    apply_steer = clip(apply_steer, min_lim, max_lim)
-
-    # slow rate if steer torque increases in magnitude
-    if self.last_steer > 0:
-      apply_steer = clip(apply_steer, max(self.last_steer - STEER_DELTA_DOWN, - STEER_DELTA_UP), self.last_steer + STEER_DELTA_UP)
-    else:
-      apply_steer = clip(apply_steer, self.last_steer - STEER_DELTA_UP, min(self.last_steer + STEER_DELTA_DOWN, STEER_DELTA_UP))
-
-    # dropping torque immediately might cause eps to temp fault. On the other hand, safety_toyota
-    # cuts steer torque immediately anyway TODO: monitor if this is a real issue
     # only cut torque when steer state is a known fault
     if CS.steer_state in [9, 25]:
+      print("     STEER_FAULT!")
       self.last_fault_frame = frame
 
     # Cut steering for 2s after fault
@@ -189,7 +184,7 @@ class CarController(object):
       # pcm entered standstill or it's disabled
       self.standstill_req = False
 
-    self.last_steer = apply_steer
+    #self.last_steer = apply_steer
     self.last_angle = apply_angle
     self.last_accel = apply_accel
     self.last_standstill = CS.standstill
@@ -202,7 +197,13 @@ class CarController(object):
     # toyota can trace shows this message at 42Hz, with counter adding alternatively 1 and 2;
     # sending it at 100Hz seem to allow a higher rate limit, as the rate limit seems imposed
     # on consecutive messages
-    if ECU.CAM in self.fake_ecus:
+    cur_time = sec_since_boot()
+    print(cur_time - self.next_steer_time)
+    if cur_time > self.next_steer_time and ECU.CAM in self.fake_ecus:
+      self.next_steer_time += STEER_INTERVAL
+      if self.next_steer_time < cur_time:
+        self.next_steer_time = cur_time + STEER_INTERVAL
+      self.last_steer = apply_steer
       if self.angle_control:
         can_sends.append(create_steer_command(self.packer, 0., 0, frame))
       else:
@@ -216,10 +217,11 @@ class CarController(object):
 
     # accel cmd comes from DSU, but we can spam can to cancel the system even if we are using lat only control
     if (frame % 3 == 0 and ECU.DSU in self.fake_ecus) or (pcm_cancel_cmd and ECU.CAM in self.fake_ecus):
+      lead = lead or CS.v_ego < 12.    # at low speed we always assume the lead is present do ACC can be engaged
       if ECU.DSU in self.fake_ecus:
-        can_sends.append(create_accel_command(self.packer, apply_accel, pcm_cancel_cmd, self.standstill_req))
+        can_sends.append(create_accel_command(self.packer, apply_accel, pcm_cancel_cmd, self.standstill_req, lead))
       else:
-        can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False))
+        can_sends.append(create_accel_command(self.packer, 0, pcm_cancel_cmd, False, lead))
 
     if frame % 10 == 0 and ECU.CAM in self.fake_ecus and not forwarding_camera:
       for addr in TARGET_IDS:
@@ -239,7 +241,7 @@ class CarController(object):
       send_ui = False
 
     if (frame % 100 == 0 or send_ui) and ECU.CAM in self.fake_ecus:
-      can_sends.append(create_ui_command(self.packer, steer, sound1, sound2))
+      can_sends.append(create_ui_command(self.packer, steer, sound1, sound2, left_line, right_line))
 
     if frame % 100 == 0 and ECU.DSU in self.fake_ecus:
       can_sends.append(create_fcw_command(self.packer, fcw))
