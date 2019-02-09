@@ -72,6 +72,8 @@ struct CarEvent @0x9b1657f34caf3ad3 {
     calibrationProgress @47;
     lowBattery @48;
     invalidGiraffeHonda @49;
+    manualSteeringRequired @50;
+    manualSteeringRequiredBlinkersOn @51;
   }
 }
 
@@ -116,6 +118,8 @@ struct CarState {
   leftBlinker @20 :Bool;
   rightBlinker @21 :Bool;
   genericToggle @23 :Bool;
+  readdistancelines @26 :Float32;
+  lkMode @27 :Bool;
 
   # lock info
   doorOpen @24 :Bool;
@@ -244,6 +248,8 @@ struct CarControl {
     leadVisible @3: Bool;
     visualAlert @4: VisualAlert;
     audibleAlert @5: AudibleAlert;
+    rightLaneVisible @6: Bool;
+    leftLaneVisible @7: Bool;
 
     enum VisualAlert {
       # these are the choices from the Honda
@@ -355,6 +361,7 @@ struct CarParams {
   radarOffCan @47 :Bool; # True when radar objects aren't visible on CAN
 
   steerActuatorDelay @48 :Float32; # Steering wheel actuator delay in seconds
+  openpilotLongitudinalControl @50 :Bool; # is openpilot doing the longitudinal control?
 
   enum SteerControlType {
     torque @0;
