@@ -118,7 +118,7 @@ class CarController(object):
     self.ipas_reset_counter = 0
     self.last_fault_frame = -200
     self.next_steer_time = 0.0
-    self.steer_f
+    self.steer_frame = 0
     self.fake_ecus = set()
     if enable_camera: self.fake_ecus.add(ECU.CAM)
     if enable_dsu: self.fake_ecus.add(ECU.DSU)
@@ -198,16 +198,17 @@ class CarController(object):
     # sending it at 100Hz seem to allow a higher rate limit, as the rate limit seems imposed
     # on consecutive messages
     cur_time = sec_since_boot()
-    print(cur_time - self.next_steer_time)
+    #print(cur_time - self.next_steer_time)
     if cur_time > self.next_steer_time and ECU.CAM in self.fake_ecus:
       self.next_steer_time += STEER_INTERVAL
+      self.steer_frame += 1
       if self.next_steer_time < cur_time:
         self.next_steer_time = cur_time + STEER_INTERVAL
       self.last_steer = apply_steer
       if self.angle_control:
-        can_sends.append(create_steer_command(self.packer, 0., 0, frame))
+        can_sends.append(create_steer_command(self.packer, 0., 0, next.steer_frame))
       else:
-        can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, frame))
+        can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, next.steer_frame))
 
     if self.angle_control:
       can_sends.append(create_ipas_steer_command(self.packer, apply_angle, self.steer_angle_enabled,
