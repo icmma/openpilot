@@ -118,7 +118,7 @@ class CarController(object):
     self.ipas_reset_counter = 0
     self.last_fault_frame = -200
     self.next_steer_time = 0.0
-
+    self.steer_f
     self.fake_ecus = set()
     if enable_camera: self.fake_ecus.add(ECU.CAM)
     if enable_dsu: self.fake_ecus.add(ECU.DSU)
