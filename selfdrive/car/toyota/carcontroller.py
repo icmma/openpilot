@@ -206,9 +206,9 @@ class CarController(object):
         self.next_steer_time = cur_time + STEER_INTERVAL
       self.last_steer = apply_steer
       if self.angle_control:
-        can_sends.append(create_steer_command(self.packer, 0., 0, next.steer_frame))
+        can_sends.append(create_steer_command(self.packer, 0., 0, self.steer_frame))
       else:
-        can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, next.steer_frame))
+        can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, self.steer_frame))
 
     if self.angle_control:
       can_sends.append(create_ipas_steer_command(self.packer, apply_angle, self.steer_angle_enabled,
