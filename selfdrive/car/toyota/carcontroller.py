@@ -18,7 +18,7 @@ ACCEL_HYST_GAP = 0.02  # don't change accel command for small oscilalitons withi
 ACCEL_MAX = 1.5  # 1.5 m/s2
 ACCEL_MIN = -3.0 # 3   m/s2
 ACCEL_SCALE = max(ACCEL_MAX, -ACCEL_MIN)
-STEER_INTERVAL = 1 / 100.0 # Hz
+STEER_INTERVAL = 1 / 43.0 # Hz
 
 # Steer torque limits
 class SteerLimitParams:
