@@ -324,7 +324,7 @@ class Planner(object):
       print "D_V", self.mpc1.v_mpc, self.mpc2.v_mpc, self.v_cruise
       print "D_A", self.mpc1.a_mpc, self.mpc2.a_mpc, self.a_cruise
       """
-      #print("planner choose solution executed!")
+
       self.longitudinalPlanSource = slowest
 
       # Choose lowest of MPC and cruise
@@ -396,7 +396,6 @@ class Planner(object):
 
       enabled = (LoC.long_control_state == LongCtrlState.pid) or (LoC.long_control_state == LongCtrlState.stopping)
       following = self.lead_1.status and self.lead_1.dRel < 45.0 and self.lead_1.vLeadK > CS.vEgo and self.lead_1.aLeadK > 0.0
-      #print("Long control updated", enabled, LoC.long_control_state)
 
       if self.last_live_map_data:
         self.v_speedlimit = NO_CURVATURE_SPEED
@@ -466,7 +465,7 @@ class Planner(object):
 
       self.mpc1.update(CS, self.lead_1, v_cruise_setpoint)
       self.mpc2.update(CS, self.lead_2, v_cruise_setpoint)
-      #print("long mpcs updated")
+
       self.choose_solution(v_cruise_setpoint, enabled)
 
       # determine fcw
@@ -539,3 +538,4 @@ class Planner(object):
 
     self.plan.send(plan_send.to_bytes())
     return plan_send
+    

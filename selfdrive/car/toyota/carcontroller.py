@@ -200,7 +200,6 @@ class CarController(object):
     cur_time = sec_since_boot()
     #print(cur_time - self.next_steer_time)
     if cur_time > self.next_steer_time and ECU.CAM in self.fake_ecus:
-      print("steer sent")
       self.next_steer_time += STEER_INTERVAL
       self.steer_frame += 1
       if self.next_steer_time < cur_time:
@@ -210,8 +209,6 @@ class CarController(object):
         can_sends.append(create_steer_command(self.packer, 0., 0, self.steer_frame))
       else:
         can_sends.append(create_steer_command(self.packer, apply_steer, apply_steer_req, self.steer_frame))
-    else:
-      print("skipped")
 
     if self.angle_control:
       can_sends.append(create_ipas_steer_command(self.packer, apply_angle, self.steer_angle_enabled,
