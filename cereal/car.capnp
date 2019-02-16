@@ -244,6 +244,8 @@ struct CarControl {
     leadVisible @3: Bool;
     visualAlert @4: VisualAlert;
     audibleAlert @5: AudibleAlert;
+    rightLaneVisible @6: Bool;
+    leftLaneVisible @7: Bool;
 
     enum VisualAlert {
       # these are the choices from the Honda
@@ -323,6 +325,7 @@ struct CarParams {
   centerToFront @9 :Float32;   # [m] GC distance to front axle
   steerRatio @10 :Float32;       # [] ratio between front wheels and steering wheel angles
   steerRatioRear @11 :Float32;  # [] rear steering ratio wrt front steering (usually 0)
+  eonToFront  @54  :Float32;    # [m] distance from EON to front wheels
 
   # things we can derive
   rotationalInertia @12 :Float32;    # [kg*m2] body rotational inertia
@@ -337,6 +340,10 @@ struct CarParams {
   steerKpDEPRECATED @15 :Float32;
   steerKiDEPRECATED @16 :Float32;
   steerKf @25 :Float32;
+  steerReactance @51 :Float32;
+  steerInductance @52 :Float32;
+  steerResistance @53 :Float32;
+
 
   # Kp and Ki for the longitudinal control
   longitudinalKpBP @36 :List(Float32);
@@ -355,6 +362,7 @@ struct CarParams {
   radarOffCan @47 :Bool; # True when radar objects aren't visible on CAN
 
   steerActuatorDelay @48 :Float32; # Steering wheel actuator delay in seconds
+  openpilotLongitudinalControl @50 :Bool; # is openpilot doing the longitudinal control?
 
   enum SteerControlType {
     torque @0;

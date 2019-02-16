@@ -72,6 +72,11 @@ class CarInterface(object):
     ret.steerActuatorDelay = 0.1  # Default delay
     tire_stiffness_factor = 1.
 
+    ret.steerReactance = 1.0
+    ret.steerInductance = 1.0
+    ret.steerResistance = 1.0
+    ret.eonToFront = 0.5
+    
     if candidate == CAR.SANTA_FE:
       ret.steerKf = 0.00005
       ret.steerRateCost = 0.5
@@ -82,8 +87,8 @@ class CarInterface(object):
       ret.steerRatio = 16.55  # 13.8 is spec end-to-end
       tire_stiffness_factor = 0.82
 
-      ret.steerKiBP, ret.steerKpBP = [[0.], [0.]]
-      ret.steerKpV, ret.steerKiV = [[0.37], [0.1]]
+      ret.steerKiBP, ret.steerKpBP = [[9., 22.], [9., 22.]]
+      ret.steerKpV, ret.steerKiV = [[0.2, 0.35], [0.05, 0.09]]
       ret.minSteerSpeed = 0.
     elif candidate == CAR.KIA_SORENTO:
       ret.steerKf = 0.00005
@@ -163,6 +168,7 @@ class CarInterface(object):
     ret.longPidDeadzoneV = [0.]
 
     ret.enableCamera = not any(x for x in CAMERA_MSGS if x in fingerprint)
+    ret.openpilotLongitudinalControl = False
 
     ret.steerLimitAlert = False
     ret.stoppingControl = False
