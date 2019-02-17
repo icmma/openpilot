@@ -35,6 +35,11 @@
 #include "cereal/gen/c/log.capnp.h"
 #include "slplay.h"
 
+//BB include BBUIState def
+#include "bbuistate.h"
+//BB end
+
+
 #define STATUS_STOPPED 0
 #define STATUS_DISENGAGED 1
 #define STATUS_ENGAGED 2
@@ -86,6 +91,8 @@ const int alert_sizes[] = {
   [ALERTSIZE_MID] = 390,
   [ALERTSIZE_FULL] = vwp_h,
 };
+
+const int SET_SPEED_NA = 255;
 
 // TODO: this is also hardcoded in common/transformations/camera.py
 const mat3 intrinsic_matrix = (mat3){{
@@ -144,6 +151,7 @@ typedef struct UIScene {
 
   uint64_t started_ts;
 
+
   // Used to show gps planner status
   bool gps_planner_active;
 
@@ -151,6 +159,9 @@ typedef struct UIScene {
 } UIScene;
 
 typedef struct UIState {
+  //BB define BBUIState
+  BBUIState b;
+  //BB end
   pthread_mutex_t lock;
   pthread_cond_t bg_cond;
 
@@ -224,9 +235,13 @@ typedef struct UIState {
   int awake_timeout;
 
   int volume_timeout;
+  int speed_lim_off_timeout;
+  int is_metric_timeout;
 
   int status;
   bool is_metric;
+  float speed_lim_off;
+  bool is_ego_over_limit;
   bool passive;
   char alert_type[64];
   char alert_sound[64];
@@ -236,6 +251,8 @@ typedef struct UIState {
 
   float light_sensor;
 } UIState;
+
+
 
 static int last_brightness = -1;
 static void set_brightness(UIState *s, int brightness) {
@@ -252,13 +269,18 @@ static void set_brightness(UIState *s, int brightness) {
 static void set_awake(UIState *s, bool awake) {
   if (awake) {
     // 30 second timeout at 30 fps
-    s->awake_timeout = 30*30;
+    if (s->b.tri_state_switch < 3) {
+      s->awake_timeout = 30*30;
+    } else {
+      s->awake_timeout = 3*30;
+    }
   }
   if (s->awake != awake) {
     s->awake = awake;
 
     if (awake) {
       LOG("awake normal");
+      set_brightness(s, 150);
       framebuffer_set_power(s->fb, HWC_POWER_MODE_NORMAL);
     } else {
       LOG("awake off");
@@ -267,6 +289,9 @@ static void set_awake(UIState *s, bool awake) {
     }
   }
 }
+
+#include "dashcam.h"
+#include "bbui.h"
 
 static void set_volume(UIState *s, int volume) {
   char volume_change_cmd[64];
@@ -282,6 +307,26 @@ static void set_do_exit(int sig) {
   do_exit = 1;
 }
 
+static void read_speed_lim_off(UIState *s) {
+  char *speed_lim_off = NULL;
+  read_db_value(NULL, "SpeedLimitOffset", &speed_lim_off, NULL);
+  s->speed_lim_off = 0.;
+  if (speed_lim_off) {
+    s->speed_lim_off = strtod(speed_lim_off, NULL);
+    free(speed_lim_off);
+  }
+  s->speed_lim_off_timeout = 2 * 60; // 2Hz
+}
+
+static void read_is_metric(UIState *s) {
+  char *is_metric;
+  const int result = read_db_value(NULL, "IsMetric", &is_metric, NULL);
+  if (result == 0) {
+    s->is_metric = is_metric[0] == '1';
+    free(is_metric);
+  }
+  s->is_metric_timeout = 2 * 60; // 2Hz
+}
 
 static const char frame_vertex_shader[] =
   "attribute vec4 aPosition;\n"
@@ -530,12 +575,9 @@ static void ui_init_vision(UIState *s, const VisionStreamBufs back_bufs,
     0.0, 0.0, 0.0, 1.0,
   }};
 
-  char *value;
-  const int result = read_db_value(NULL, "IsMetric", &value, NULL);
-  if (result == 0) {
-    s->is_metric = value[0] == '1';
-    free(value);
-  }
+  read_speed_lim_off(s);
+  read_is_metric(s);
+  s->is_metric_timeout = 60; // offset so values isn't read together with limit offset
 }
 
 static void ui_draw_transformed_box(UIState *s, uint32_t color) {
@@ -624,28 +666,37 @@ static void draw_chevron(UIState *s, float x_in, float y_in, float sz,
   nvgBeginPath(s->vg);
   float g_xo = sz/5;
   float g_yo = sz/10;
-  if (x >= 0 && y >= 0.) {
-    nvgMoveTo(s->vg, x+(sz*1.35)+g_xo, y+sz+g_yo);
-    nvgLineTo(s->vg, x, y-g_xo);
-    nvgLineTo(s->vg, x-(sz*1.35)-g_xo, y+sz+g_yo);
-    nvgLineTo(s->vg, x+(sz*1.35)+g_xo, y+sz+g_yo);
-    nvgClosePath(s->vg);
+  //BB added for printing the car
+  //if position is 3 do nothing
+  if (s->b.tri_state_switch == 3) {
+    return;
   }
-  nvgFillColor(s->vg, glowColor);
-  nvgFill(s->vg);
+  if (s->b.tri_state_switch == 2) {
+    nvgRestore(s->vg);
+    bb_ui_draw_car(s);
+  } else {
+    if (x >= 0 && y >= 0.) {
+        nvgMoveTo(s->vg, x+(sz*1.35)+g_xo, y+sz+g_yo);
+        nvgLineTo(s->vg, x, y-g_xo);
+        nvgLineTo(s->vg, x-(sz*1.35)-g_xo, y+sz+g_yo);
+        nvgLineTo(s->vg, x+(sz*1.35)+g_xo, y+sz+g_yo);
+        nvgClosePath(s->vg);
+    }
+    nvgFillColor(s->vg, glowColor);
+    nvgFill(s->vg);
 
-  // chevron
-  nvgBeginPath(s->vg);
-  if (x >= 0 && y >= 0.) {
-    nvgMoveTo(s->vg, x+(sz*1.25), y+sz);
-    nvgLineTo(s->vg, x, y);
-    nvgLineTo(s->vg, x-(sz*1.25), y+sz);
-    nvgLineTo(s->vg, x+(sz*1.25), y+sz);
-    nvgClosePath(s->vg);
+    // chevron
+    nvgBeginPath(s->vg);
+    if (x >= 0 && y >= 0.) {
+        nvgMoveTo(s->vg, x+(sz*1.25), y+sz);
+        nvgLineTo(s->vg, x, y);
+        nvgLineTo(s->vg, x-(sz*1.25), y+sz);
+        nvgLineTo(s->vg, x+(sz*1.25), y+sz);
+        nvgClosePath(s->vg);
+    }
+    nvgFillColor(s->vg, fillColor);
+    nvgFill(s->vg);
   }
-  nvgFillColor(s->vg, fillColor);
-  nvgFill(s->vg);
-
   nvgRestore(s->vg);
 }
 
@@ -699,6 +750,11 @@ static void ui_draw_lane_line(UIState *s, const float *points, float off,
 }
 
 static void ui_draw_lane(UIState *s, const PathData path, NVGcolor color) {
+  //BB added to make the line blue
+  if (s->b.tri_state_switch >= 2) {
+    color = nvgRGBA(66, 220, 244,250);
+  }
+  //BB end  
   ui_draw_lane_line(s, path.points, 0.025*path.prob, color, false);
   float var = min(path.std, 0.7);
   color.a /= 4;
@@ -838,11 +894,15 @@ static void draw_frame(UIState *s) {
   };
 
   glActiveTexture(GL_TEXTURE0);
-  if (s->scene.frontview && s->cur_vision_front_idx >= 0) {
-    glBindTexture(GL_TEXTURE_2D, s->frame_front_texs[s->cur_vision_front_idx]);
-  } else if (!scene->frontview && s->cur_vision_idx >= 0) {
-    glBindTexture(GL_TEXTURE_2D, s->frame_texs[s->cur_vision_idx]);
+  //BB added to suppress video printing
+  if (s->b.tri_state_switch == 1) {
+    if (s->scene.frontview && s->cur_vision_front_idx >= 0) {
+      glBindTexture(GL_TEXTURE_2D, s->frame_front_texs[s->cur_vision_front_idx]);
+    } else if (!scene->frontview && s->cur_vision_idx >= 0) {
+      glBindTexture(GL_TEXTURE_2D, s->frame_texs[s->cur_vision_idx]);
+    }
   }
+  //BB end  
 
   glUseProgram(s->frame_program);
 
@@ -863,6 +923,14 @@ static void draw_frame(UIState *s) {
 
 static void ui_draw_vision_lanes(UIState *s) {
   const UIScene *scene = &s->scene;
+  //draw nothing if position is 3
+  if (s->b.tri_state_switch == 3) {
+    return;
+  }
+  //BB add to draw our lanes
+  if (s->b.tri_state_switch == 2) {
+    bb_draw_lane_fill(s);
+  }
   // Draw left lane edge
   ui_draw_lane(
       s, scene->model.left_lane,
@@ -915,41 +983,84 @@ static void ui_draw_vision_maxspeed(UIState *s) {
   const UIScene *scene = &s->scene;
   int ui_viz_rx = scene->ui_viz_rx;
   int ui_viz_rw = scene->ui_viz_rw;
-  float maxspeed = s->scene.v_cruise;
 
-  const int viz_maxspeed_x = (ui_viz_rx + (bdr_s*2));
-  const int viz_maxspeed_y = (box_y + (bdr_s*1.5));
-  const int viz_maxspeed_w = 180;
-  const int viz_maxspeed_h = 202;
   char maxspeed_str[32];
-  bool is_cruise_set = (maxspeed != 0 && maxspeed != 255);
+  float maxspeed = s->scene.v_cruise;
+  int maxspeed_calc = maxspeed * 0.6225 + 0.5;
+  float speedlimit = s->scene.speedlimit;
+  int speedlim_calc = speedlimit * 2.2369363 + 0.5;
+  int speed_lim_off = s->speed_lim_off * 2.2369363 + 0.5;
+  if (s->is_metric) {
+    maxspeed_calc = maxspeed + 0.5;
+    speedlim_calc = speedlimit * 3.6 + 0.5;
+    speed_lim_off = s->speed_lim_off * 3.6 + 0.5;
+  }
 
+  bool is_cruise_set = (maxspeed != 0 && maxspeed != SET_SPEED_NA);
+  bool is_speedlim_valid = s->scene.speedlimit_valid;
+  bool is_set_over_limit = is_speedlim_valid && s->scene.engaged &&
+                       is_cruise_set && maxspeed_calc > (speedlim_calc + speed_lim_off);
+
+  int viz_maxspeed_w = 184;
+  int viz_maxspeed_h = 202;
+  int viz_maxspeed_x = (ui_viz_rx + (bdr_s*2));
+  int viz_maxspeed_y = (box_y + (bdr_s*1.5));
+  int viz_maxspeed_xo = 180;
+  viz_maxspeed_w += viz_maxspeed_xo;
+  viz_maxspeed_x += viz_maxspeed_w - (viz_maxspeed_xo * 2);
+
+  // Draw Background
+  nvgBeginPath(s->vg);
+  nvgRoundedRect(s->vg, viz_maxspeed_x, viz_maxspeed_y, viz_maxspeed_w, viz_maxspeed_h, 30);
+  if (is_set_over_limit) {
+    nvgFillColor(s->vg, nvgRGBA(218, 111, 37, 180));
+  } else {
+    nvgFillColor(s->vg, nvgRGBA(0, 0, 0, 100));
+  }
+  nvgFill(s->vg);
+
+  // Draw Border
   nvgBeginPath(s->vg);
   nvgRoundedRect(s->vg, viz_maxspeed_x, viz_maxspeed_y, viz_maxspeed_w, viz_maxspeed_h, 20);
-  nvgStrokeColor(s->vg, nvgRGBA(255,255,255,80));
-  nvgStrokeWidth(s->vg, 6);
+  if (is_set_over_limit) {
+    nvgStrokeColor(s->vg, nvgRGBA(218, 111, 37, 255));
+  } else if (is_speedlim_valid && !s->is_ego_over_limit) {
+    nvgStrokeColor(s->vg, nvgRGBA(255, 255, 255, 255));
+  } else if (is_speedlim_valid && s->is_ego_over_limit) {
+    nvgStrokeColor(s->vg, nvgRGBA(255, 255, 255, 20));
+  } else {
+    nvgStrokeColor(s->vg, nvgRGBA(255, 255, 255, 100));
+  }
+  nvgStrokeWidth(s->vg, 10);
   nvgStroke(s->vg);
 
+  // Draw "MAX" Text
   nvgTextAlign(s->vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
   nvgFontFace(s->vg, "sans-regular");
   nvgFontSize(s->vg, 26*2.5);
-  nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 200));
-  nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, 148, "MAX", NULL);
-
-  nvgFontFace(s->vg, "sans-semibold");
-  nvgFontSize(s->vg, 52*2.5);
-  nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 255));
   if (is_cruise_set) {
-    if (s->is_metric) {
-      snprintf(maxspeed_str, sizeof(maxspeed_str), "%d", (int)(maxspeed + 0.5));
-    } else {
-      snprintf(maxspeed_str, sizeof(maxspeed_str), "%d", (int)(maxspeed * 0.6225 + 0.5));
-    }
-    nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, 242, maxspeed_str, NULL);
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 200));
   } else {
-    nvgFontSize(s->vg, 42*2.5);
-    nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, 242, "N/A", NULL);
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 100));
   }
+  nvgText(s->vg, viz_maxspeed_x+(viz_maxspeed_xo/2)+(viz_maxspeed_w/2), 148, "MAX", NULL);
+
+  // Draw Speed Text
+  nvgFontFace(s->vg, "sans-bold");
+  nvgFontSize(s->vg, 48*2.5);
+  if (is_cruise_set) {
+    snprintf(maxspeed_str, sizeof(maxspeed_str), "%d", maxspeed_calc);
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 255));
+    nvgText(s->vg, viz_maxspeed_x+(viz_maxspeed_xo/2)+(viz_maxspeed_w/2), 242, maxspeed_str, NULL);
+  } else {
+    nvgFontFace(s->vg, "sans-semibold");
+    nvgFontSize(s->vg, 42*2.5);
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 100));
+    nvgText(s->vg, viz_maxspeed_x+(viz_maxspeed_xo/2)+(viz_maxspeed_w/2), 242, "N/A", NULL);
+  }
+  //BB START: add new measures panel  const int bb_dml_w = 180;
+	bb_ui_draw_UI(s) ;
+  //BB END: add new measures panel
 }
 
 static void ui_draw_vision_speedlimit(UIState *s) {
@@ -957,69 +1068,84 @@ static void ui_draw_vision_speedlimit(UIState *s) {
   int ui_viz_rx = scene->ui_viz_rx;
   int ui_viz_rw = scene->ui_viz_rw;
 
-  if (!s->scene.speedlimit_valid){
-    return;
+  char speedlim_str[32];
+  float speedlimit = s->scene.speedlimit;
+  int speedlim_calc = speedlimit * 2.2369363 + 0.5;
+  if (s->is_metric) {
+    speedlim_calc = speedlimit * 3.6 + 0.5;
   }
 
-  float speedlimit = s->scene.speedlimit;
+  bool is_speedlim_valid = s->scene.speedlimit_valid;
+  float hysteresis_offset = 0.5;
+  if (s->is_ego_over_limit) {
+    hysteresis_offset = 0.0;
+  }
+  s->is_ego_over_limit = is_speedlim_valid && s->scene.v_ego > (speedlimit + s->speed_lim_off + hysteresis_offset);
 
-  const int viz_maxspeed_w = 180;
-  const int viz_maxspeed_h = 202;
+  int viz_speedlim_w = 180;
+  int viz_speedlim_h = 202;
+  int viz_speedlim_x = (ui_viz_rx + (bdr_s*2));
+  int viz_speedlim_y = (box_y + (bdr_s*1.5));
+  if (!is_speedlim_valid) {
+    viz_speedlim_w -= 5;
+    viz_speedlim_h -= 10;
+    viz_speedlim_x += 9;
+    viz_speedlim_y += 5;
+  }
+  int viz_speedlim_bdr = is_speedlim_valid ? 30 : 15;
 
-  const int viz_event_w = 220;
-  const int viz_event_x = ((ui_viz_rx + ui_viz_rw) - (viz_event_w + (bdr_s*2)));
-
-  const int viz_maxspeed_x = viz_event_x + (viz_event_w-viz_maxspeed_w);
-  const int viz_maxspeed_y = (footer_y + ((footer_h - viz_maxspeed_h) / 2)) - 20;
-
-  char maxspeed_str[32];
-
-  if (s->is_metric) {
-    nvgBeginPath(s->vg);
-    nvgCircle(s->vg, viz_maxspeed_x + viz_maxspeed_w / 2, viz_maxspeed_y + viz_maxspeed_h / 2, 127);
-    nvgFillColor(s->vg, nvgRGBA(195, 0, 0, 255));
-    nvgFill(s->vg);
-
-    nvgBeginPath(s->vg);
-    nvgCircle(s->vg, viz_maxspeed_x + viz_maxspeed_w / 2, viz_maxspeed_y + viz_maxspeed_h / 2, 100);
+  // Draw Background
+  nvgBeginPath(s->vg);
+  nvgRoundedRect(s->vg, viz_speedlim_x, viz_speedlim_y, viz_speedlim_w, viz_speedlim_h, viz_speedlim_bdr);
+  if (is_speedlim_valid && s->is_ego_over_limit) {
+    nvgFillColor(s->vg, nvgRGBA(218, 111, 37, 180));
+  } else if (is_speedlim_valid) {
     nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 255));
-    nvgFill(s->vg);
-
-    nvgTextAlign(s->vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-    nvgFontFace(s->vg, "sans-bold");
-    nvgFontSize(s->vg, 130);
-    nvgFillColor(s->vg, nvgRGBA(0, 0, 0, 255));
-
-    snprintf(maxspeed_str, sizeof(maxspeed_str), "%d", (int)(speedlimit * 3.6 + 0.5));
-    nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, viz_maxspeed_y + 135, maxspeed_str, NULL);
   } else {
-    const int border = 10;
-    nvgBeginPath(s->vg);
-    nvgRoundedRect(s->vg, viz_maxspeed_x - border, viz_maxspeed_y - border, viz_maxspeed_w + 2 * border, viz_maxspeed_h + 2 * border, 30);
-    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 255));
-    nvgFill(s->vg);
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 100));
+  }
+  nvgFill(s->vg);
 
-    nvgBeginPath(s->vg);
-    nvgRoundedRect(s->vg, viz_maxspeed_x, viz_maxspeed_y, viz_maxspeed_w, viz_maxspeed_h, 20);
-    nvgStrokeColor(s->vg, nvgRGBA(0, 0, 0, 255));
-    nvgStrokeWidth(s->vg, 8);
+  // Draw Border
+  if (is_speedlim_valid) {
+    nvgStrokeWidth(s->vg, 10);
     nvgStroke(s->vg);
+    nvgBeginPath(s->vg);
+    nvgRoundedRect(s->vg, viz_speedlim_x, viz_speedlim_y, viz_speedlim_w, viz_speedlim_h, 20);
+    if (s->is_ego_over_limit) {
+      nvgStrokeColor(s->vg, nvgRGBA(218, 111, 37, 255));
+    } else if (is_speedlim_valid) {
+      nvgStrokeColor(s->vg, nvgRGBA(255, 255, 255, 255));
+    }
+  }
 
+  // Draw "Speed Limit" Text
+  nvgTextAlign(s->vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+  nvgFontFace(s->vg, "sans-semibold");
+  nvgFontSize(s->vg, 50);
+  nvgFillColor(s->vg, nvgRGBA(0, 0, 0, 255));
+  if (is_speedlim_valid && s->is_ego_over_limit) {
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 255));
+  }
+  nvgText(s->vg, viz_speedlim_x+viz_speedlim_w/2 + (is_speedlim_valid ? 6 : 0), viz_speedlim_y + (is_speedlim_valid ? 50 : 45), "SPEED", NULL);
+  nvgText(s->vg, viz_speedlim_x+viz_speedlim_w/2 + (is_speedlim_valid ? 6 : 0), viz_speedlim_y + (is_speedlim_valid ? 90 : 85), "LIMIT", NULL);
 
-    nvgTextAlign(s->vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+  // Draw Speed Text
+  nvgFontFace(s->vg, "sans-bold");
+  nvgFontSize(s->vg, 48*2.5);
+  if (s->is_ego_over_limit) {
+    nvgFillColor(s->vg, nvgRGBA(255, 255, 255, 255));
+  } else {
+    nvgFillColor(s->vg, nvgRGBA(0, 0, 0, 255));
+  }
+  if (is_speedlim_valid) {
+    snprintf(speedlim_str, sizeof(speedlim_str), "%d", speedlim_calc);
+    nvgText(s->vg, viz_speedlim_x+viz_speedlim_w/2, viz_speedlim_y + (is_speedlim_valid ? 170 : 165), speedlim_str, NULL);
+  } else {
     nvgFontFace(s->vg, "sans-semibold");
-    nvgFontSize(s->vg, 50);
-    nvgFillColor(s->vg, nvgRGBA(0, 0, 0, 255));
-    nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, viz_maxspeed_y + 50, "SPEED", NULL);
-    nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, viz_maxspeed_y + 90, "LIMIT", NULL);
-
-    nvgFontFace(s->vg, "sans-bold");
-    nvgFontSize(s->vg, 120);
-    nvgFillColor(s->vg, nvgRGBA(0, 0, 0, 255));
-
-    snprintf(maxspeed_str, sizeof(maxspeed_str), "%d", (int)(speedlimit * 2.2369363 + 0.5));
-    nvgText(s->vg, viz_maxspeed_x+viz_maxspeed_w/2, viz_maxspeed_y + 170, maxspeed_str, NULL);
- }
+    nvgFontSize(s->vg, 42*2.5);
+    nvgText(s->vg, viz_speedlim_x+viz_speedlim_w/2, viz_speedlim_y + (is_speedlim_valid ? 170 : 165), "N/A", NULL);
+  }
 }
 
 static void ui_draw_vision_speed(UIState *s) {
@@ -1137,6 +1263,7 @@ static void ui_draw_vision_header(UIState *s) {
   nvgFill(s->vg);
 
   ui_draw_vision_maxspeed(s);
+  ui_draw_vision_speedlimit(s);
   ui_draw_vision_speed(s);
   ui_draw_vision_wheel(s);
 }
@@ -1151,8 +1278,6 @@ static void ui_draw_vision_footer(UIState *s) {
 
   // Driver Monitoring
   ui_draw_vision_face(s);
-
-  ui_draw_vision_speedlimit(s);
 }
 
 static void ui_draw_vision_alert(UIState *s, int va_size, int va_color,
@@ -1207,9 +1332,19 @@ static void ui_draw_vision_alert(UIState *s, int va_size, int va_color,
     nvgTextAlign(s->vg, NVG_ALIGN_CENTER | NVG_ALIGN_BOTTOM);
     nvgTextBox(s->vg, alr_x, alr_h-(longAlert1?300:360), alr_w-60, va_text2, NULL);
   }
+  
 }
 
+
 static void ui_draw_vision(UIState *s) {
+  //BB code added to only draw every other frame
+  if (!s->b.shouldDrawFrame) {
+    s->b.shouldDrawFrame = true;
+    //return;
+  }
+  s->b.shouldDrawFrame = false;
+  //BBEND
+
   const UIScene *scene = &s->scene;
   int ui_viz_rx = scene->ui_viz_rx;
   int ui_viz_rw = scene->ui_viz_rw;
@@ -1324,10 +1459,17 @@ static ModelData read_model(cereal_ModelData_ptr modelp) {
 }
 
 static void update_status(UIState *s, int status) {
+  //BB Variable for the old status
+  int old_status = s->status;
   if (s->status != status) {
     s->status = status;
+    set_awake(s, true);
     // wake up bg thread to change
     pthread_cond_signal(&s->bg_cond);
+    //BB add sound
+    if ((old_status != STATUS_STOPPED) || (s->status != STATUS_DISENGAGED)) {
+      bb_ui_play_sound(s,s->status);
+    }
   }
 }
 
@@ -1441,8 +1583,10 @@ static void ui_update(UIState *s) {
     if (polls[0].revents || polls[1].revents || polls[2].revents ||
         polls[3].revents || polls[4].revents || polls[6].revents ||
         polls[7].revents || polls[8].revents) {
-      // awake on any (old) activity
-      set_awake(s, true);
+      // awake on any (old) activity if tri-state in 1 or 2 position
+      if(s->b.tri_state_switch < 3) {
+        set_awake(s, true);
+      } 
     }
 
     if (s->vision_connected && polls[9].revents) {
@@ -1539,6 +1683,10 @@ static void ui_update(UIState *s) {
         }
         s->scene.v_cruise = datad.vCruise;
         s->scene.v_ego = datad.vEgo;
+        //BB get angles
+        s->b.angleSteers = datad.angleSteers;
+		    s->b.angleSteersDes = datad.angleSteersDes;
+        //BB END
         s->scene.curvature = datad.curvature;
         s->scene.engaged = datad.enabled;
         s->scene.engageable = datad.engageable;
@@ -1644,6 +1792,7 @@ static void ui_update(UIState *s) {
         struct cereal_LiveCalibrationData datad;
         cereal_read_LiveCalibrationData(&datad, eventd.liveCalibration);
 
+
         // should we still even have this?
         capn_list32 warpl = datad.warpMatrix2;
         capn_resolve(&warpl.p);  // is this a bug?
@@ -1689,28 +1838,45 @@ static void ui_update(UIState *s) {
         }
 
         s->scene.started_ts = datad.startedTs;
-      } else if (eventd.which == cereal_Event_uiLayoutState) {
-        struct cereal_UiLayoutState datad;
-        cereal_read_UiLayoutState(&datad, eventd.uiLayoutState);
-        s->scene.uilayout_sidebarcollapsed = datad.sidebarCollapsed;
-        s->scene.uilayout_mapenabled = datad.mapEnabled;
-
-        bool hasSidebar = !s->scene.uilayout_sidebarcollapsed;
-        bool mapEnabled = s->scene.uilayout_mapenabled;
-        if (mapEnabled) {
-          s->scene.ui_viz_rx = hasSidebar ? (box_x+nav_w) : (box_x+nav_w-(bdr_s*4));
-          s->scene.ui_viz_rw = hasSidebar ? (box_w-nav_w) : (box_w-nav_w+(bdr_s*4));
-          s->scene.ui_viz_ro = -(sbr_w + 4*bdr_s);
-        } else {
-          s->scene.ui_viz_rx = hasSidebar ? box_x : (box_x-sbr_w+bdr_s*2);
-          s->scene.ui_viz_rw = hasSidebar ? box_w : (box_w+sbr_w-(bdr_s*2));
-          s->scene.ui_viz_ro = hasSidebar ? -(sbr_w - 6*bdr_s) : 0;
+        //BB CPU TEMP
+		    s->b.maxCpuTemp=datad.cpu0;
+        if (s->b.maxCpuTemp<datad.cpu1)
+        {
+            s->b.maxCpuTemp=datad.cpu1;
         }
+        else if (s->b.maxCpuTemp<datad.cpu2)
+        {
+            s->b.maxCpuTemp=datad.cpu2;
+        }
+        else if (s->b.maxCpuTemp<datad.cpu3)
+        {
+            s->b.maxCpuTemp=datad.cpu3;
+        }
+        s->b.maxBatTemp=datad.bat;
+        s->b.freeSpace=datad.freeSpace;
+        //BB END CPU TEMP
+      } else if (eventd.which == cereal_Event_uiLayoutState) {
+          struct cereal_UiLayoutState datad;
+          cereal_read_UiLayoutState(&datad, eventd.uiLayoutState);
+          s->scene.uilayout_sidebarcollapsed = datad.sidebarCollapsed;
+          s->scene.uilayout_mapenabled = datad.mapEnabled;
+
+          bool hasSidebar = !s->scene.uilayout_sidebarcollapsed;
+          bool mapEnabled = s->scene.uilayout_mapenabled;
+          if (mapEnabled) {
+            s->scene.ui_viz_rx = hasSidebar ? (box_x+nav_w) : (box_x+nav_w-(bdr_s*4));
+            s->scene.ui_viz_rw = hasSidebar ? (box_w-nav_w) : (box_w-nav_w+(bdr_s*4));
+            s->scene.ui_viz_ro = -(sbr_w + 4*bdr_s);
+          } else {
+            s->scene.ui_viz_rx = hasSidebar ? box_x : (box_x-sbr_w+bdr_s*2);
+            s->scene.ui_viz_rw = hasSidebar ? box_w : (box_w+sbr_w-(bdr_s*2));
+            s->scene.ui_viz_ro = hasSidebar ? -(sbr_w - 6*bdr_s) : 0;
+          }
       } else if (eventd.which == cereal_Event_liveMapData) {
         struct cereal_LiveMapData datad;
         cereal_read_LiveMapData(&datad, eventd.liveMapData);
         s->scene.speedlimit = datad.speedLimit;
-        s->scene.speedlimit_valid = datad.valid;
+        s->scene.speedlimit_valid = datad.speedLimitValid;
       }
       capn_free(&ctx);
       zmq_msg_close(&msg);
@@ -1845,11 +2011,14 @@ static void* bg_thread(void* args) {
   int bg_status = -1;
   while(!do_exit) {
     pthread_mutex_lock(&s->lock);
-    if (bg_status == s->status) {
+    //BB Change of background based on our color
+    int actual_status = bb_get_status(s);
+    if (bg_status == actual_status) {
       // will always be signaled if it changes?
       pthread_cond_wait(&s->bg_cond, &s->lock);
     }
-    bg_status = s->status;
+    bg_status = actual_status;
+    //BB End of background color change
     pthread_mutex_unlock(&s->lock);
 
     assert(bg_status < ARRAYSIZE(bg_colors));
@@ -1891,6 +2060,8 @@ int main() {
   UIState uistate;
   UIState *s = &uistate;
   ui_init(s);
+  //BB init our UI
+  bb_ui_init(s);
 
   pthread_t connect_thread_handle;
   err = pthread_create(&connect_thread_handle, NULL,
@@ -1946,13 +2117,16 @@ int main() {
     }
 
     ui_update(s);
-
+    //BB Update our cereal polls
+    bb_ui_poll_update(s);
     // awake on any touch
     int touch_x = -1, touch_y = -1;
     int touched = touch_poll(&touch, &touch_x, &touch_y, s->awake ? 0 : 100);
     if (touched == 1) {
       // touch event will still happen :(
       set_awake(s, true);
+      // BB check touch area
+      bb_handle_ui_touch(s,touch_x,touch_y);
     }
 
     // manage wakefulness
@@ -1963,6 +2137,7 @@ int main() {
     }
 
     if (s->awake) {
+      dashcam(s, touch_x, touch_y);
       ui_draw(s);
       glFinish();
       should_swap = true;
@@ -1973,6 +2148,18 @@ int main() {
     } else {
       int volume = min(13, 11 + s->scene.v_ego / 15);  // up one notch every 15 m/s, starting at 11
       set_volume(s, volume);
+    }
+
+    if (s->speed_lim_off_timeout > 0) {
+      s->speed_lim_off_timeout--;
+    } else {
+      read_speed_lim_off(s);
+    }
+
+    if (s->is_metric_timeout > 0) {
+      s->is_metric_timeout--;
+    } else {
+      read_is_metric(s);
     }
 
     pthread_mutex_unlock(&s->lock);
