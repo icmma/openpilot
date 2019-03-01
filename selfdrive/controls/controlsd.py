@@ -512,7 +512,7 @@ def controlsd_thread(gctx=None, rate=100):
                    live100, AM, driver_status, LaC, LoC, angle_offset, passive, start_time, params, v_acc, a_acc)
     prof.checkpoint("Sent")
 
-    rk.keep_time()  # Run at 100Hz
+    #rk.keep_time()  # Run at 100Hz
     prof.display()
 
 

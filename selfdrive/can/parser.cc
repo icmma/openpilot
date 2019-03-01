@@ -296,6 +296,7 @@ class CANParser {
 
   void update(uint64_t sec, bool wait) {
     int err;
+    int frameCount = 0;
 
     // recv from can
     zmq_msg_t msg;
@@ -303,10 +304,11 @@ class CANParser {
 
     // multiple recv is fine
     bool first = wait;
-    while (1) {
-      if (first) {
+    while (wait) {
+      if (frameCount < 2) {
         err = zmq_msg_recv(&msg, subscriber, 0);
         first = false;
+        frameCount++;
       } else {
         err = zmq_msg_recv(&msg, subscriber, ZMQ_DONTWAIT);
       }
