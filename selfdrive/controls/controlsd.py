@@ -41,10 +41,12 @@ def isEnabled(state):
 
 def data_sample(CI, CC, plan_sock, path_plan_sock, thermal, calibration, health, driver_monitor,
                 poller, cal_status, cal_perc, overtemp, free_space, low_battery,
-                driver_status, state, mismatch_counter, params, plan, path_plan):
+                driver_status, state, mismatch_counter, params, plan, path_plan, rk):
   """Receive data from sockets and create events for battery, temperature and disk space"""
 
   # Update carstate from CAN and create events
+  #rk.keep_time()  # Run at 100Hz
+  print (sec_since_boot())
   CS = CI.update(CC)
   events = list(CS.events)
   enabled = isEnabled(state)
@@ -478,7 +480,7 @@ def controlsd_thread(gctx=None, rate=100):
     CS, events, cal_status, cal_perc, overtemp, free_space, low_battery, mismatch_counter, plan, path_plan  =\
       data_sample(CI, CC, plan_sock, path_plan_sock, thermal, cal, health, driver_monitor,
                   poller, cal_status, cal_perc, overtemp, free_space, low_battery, driver_status,
-                  state, mismatch_counter, params, plan, path_plan)
+                  state, mismatch_counter, params, plan, path_plan, rk)
     prof.checkpoint("Sample")
 
     path_plan_age = (start_time - path_plan.logMonoTime) / 1e9

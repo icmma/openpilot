@@ -35,6 +35,9 @@ class LatControl(object):
       self.smooth_factor = CP.steerInductance * 2.0 * CP.steerActuatorDelay / _DT    # Multiplier for inductive component (feed forward)
       self.projection_factor = CP.steerReactance * CP.steerActuatorDelay / 2.0       # Mutiplier for reactive component (PI)
       self.accel_limit = 2.0 / CP.steerResistance                                    # Desired acceleration limit to prevent "whip steer" (resistive component)
+      self.reactance = CP.steerReactance
+      self.resistance = CP.steerResistance
+      self.inductance = CP.steerInductance
       self.ff_angle_factor = 1.0                                                     # Kf multiplier for angle-based feed forward
       self.ff_rate_factor = 10.0                                                      # Kf multiplier for rate-based feed forward
       # Eliminate break-points, since they aren't needed (and would cause problems for resonance)
@@ -218,29 +221,33 @@ class LatControl(object):
             and (abs(float(restricted_steer_rate)) > abs(accelerated_angle_rate) or (float(restricted_steer_rate) < 0) != (accelerated_angle_rate < 0)) \
             and (float(restricted_steer_rate) < 0) == (float(self.angle_steers_des) - float(angle_offset) - 0.5 < 0):
           self.feed_forward = (((self.smooth_factor - 1.) * self.feed_forward) + self.ff_rate_factor * v_ego**2 * float(restricted_steer_rate)) / self.smooth_factor
+          ff_type = "r"
         elif abs(self.angle_steers_des - float(angle_offset)) > 0.5:
           self.feed_forward = (((self.smooth_factor - 1.) * self.feed_forward) + self.ff_angle_factor * v_ego**2 \
                               * float(apply_deadzone(float(self.angle_steers_des) - float(angle_offset), 0.5))) / self.smooth_factor
+          ff_type = "a"
         else:
           self.feed_forward = (((self.smooth_factor - 1.) * self.feed_forward) + 0.0) / self.smooth_factor
+          ff_type = "a"
 
         # Use projected desired and actual angles instead of "current" values, in order to make PI more reactive (for resonance)
         output_steer = self.pid.update(projected_angle_steers_des, projected_angle_steers, check_saturation=(v_ego > 10),
                                         override=steer_override, feedforward=self.feed_forward, speed=v_ego, deadzone=deadzone)
 
       receiveTime = int(time.time() * 1000)
-      self.dash_writer.writerow([str(round(self.angle_steers_des, 2)),
-                            str(round(self.mpc_angles[1], 2)),
-                            str(round(self.mpc_times[1], 2)),
+      self.dash_writer.writerow([str(round(path_plan.angleSteers, 2)),
+                            str(round(self.angle_steers_des, 2)),
+                            str(round(path_plan.mpcTimes[1], 4)),
+                            str(round(cur_time, 4)),
                             str(round(angle_steers, 2)),
                             str(round(float(angle_rate), 1)),
                             str(round(v_ego, 1)),
                             1 if steer_override else 0,
                             str(round(self.pid.p, 4)),
-                            str(round(self.pid.i, 4)),
+                            str(round(self.pid.i, 4)), 
                             str(round(self.pid.f, 4)),
                             1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0,
-                            str(round(PL.PP.sway,2)),
+                            #str(round(path_plan.sway,2)),
                             str(round(self.reactance,2)),
                             str(round(self.inductance,2)),
                             str(round(self.resistance,2)),
