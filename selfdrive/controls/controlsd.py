@@ -46,7 +46,7 @@ def data_sample(CI, CC, plan_sock, path_plan_sock, thermal, calibration, health,
 
   # Update carstate from CAN and create events
   CS = CI.update(CC)
-  rk.keep_time()  # Run at 100Hz
+  rk.keep_time(True)  # Run at 100Hz
   print (sec_since_boot())
   events = list(CS.events)
   enabled = isEnabled(state)
