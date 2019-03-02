@@ -303,16 +303,14 @@ class CANParser {
     zmq_msg_init(&msg);
 
     // multiple recv is fine
-    bool first = wait;
     while (wait) {
-      if (frameCount < 2) {
+      if (frameCount < 1) {
         err = zmq_msg_recv(&msg, subscriber, 0);
-        first = false;
-        frameCount++;
       } else {
         err = zmq_msg_recv(&msg, subscriber, ZMQ_DONTWAIT);
       }
       if (err < 0) break;
+      frameCount++;
 
       // format for board, make copy due to alignment issues, will be freed on out of scope
       auto amsg = kj::heapArray<capnp::word>((zmq_msg_size(&msg) / sizeof(capnp::word)) + 1);
@@ -326,6 +324,7 @@ class CANParser {
 
       UpdateCans(sec, cans);
     }
+    if ((frameCount > 1) && wait) printf("   frame count %d   \n", frameCount);
 
     UpdateValid(sec);
 

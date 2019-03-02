@@ -45,9 +45,9 @@ def data_sample(CI, CC, plan_sock, path_plan_sock, thermal, calibration, health,
   """Receive data from sockets and create events for battery, temperature and disk space"""
 
   # Update carstate from CAN and create events
-  #rk.keep_time()  # Run at 100Hz
-  print (sec_since_boot())
   CS = CI.update(CC)
+  rk.keep_time()  # Run at 100Hz
+  print (sec_since_boot())
   events = list(CS.events)
   enabled = isEnabled(state)
 
