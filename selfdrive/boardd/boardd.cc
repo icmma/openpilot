@@ -217,6 +217,7 @@ void can_recv(void *s) {
   uint32_t data[RECV_SIZE/4];
   int recv;
   uint32_t f1, f2;
+  int sleepTime;
 
   // do recv
   pthread_mutex_lock(&usb_lock);
@@ -263,6 +264,10 @@ void can_recv(void *s) {
   // send to can
   auto words = capnp::messageToFlatArray(msg);
   auto bytes = words.asBytes();
+
+  sleepTime = 5000 - ((nanos_since_boot() / 1000) % 5000);
+  usleep(sleepTime);
+
   zmq_send(s, bytes.begin(), bytes.size(), 0);
 }
 
@@ -452,8 +457,8 @@ void *can_recv_thread(void *crap) {
   while (!do_exit) {
     can_recv(publisher);
     // 5ms
-    sleepTime = 5000 - ((nanos_since_boot() / 1000) % 5000);
-    usleep(sleepTime);
+    //sleepTime = 5000 - ((nanos_since_boot() / 1000) % 5000);
+    //usleep(sleepTime);
     //usleep(5000);
     //LOGW("   sleeptime = %d  ", sleepTime);
   }
