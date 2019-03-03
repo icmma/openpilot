@@ -205,6 +205,7 @@ class CarInterface(object):
       ret.steerInductance =  0.9
       ret.steerResistance = 1.0
       ret.eonToFront = 0.0
+      ret.syncID = 330
       if is_fw_modified:
         tire_stiffness_factor = 0.9
         ret.steerKf = 0.00004
@@ -226,7 +227,7 @@ class CarInterface(object):
       ret.steerInductance = 2.25
       ret.steerResistance = 0.5
       ret.eonToFront = 1.0
-      #ret.syncID = 330
+      ret.syncID = 330
       ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
@@ -262,6 +263,7 @@ class CarInterface(object):
       ret.steerInductance =  1.0
       ret.steerResistance = 0.5
       ret.eonToFront = 0.0
+      ret.syncID = 330
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
@@ -274,6 +276,7 @@ class CarInterface(object):
       ret.wheelbase = 2.66
       ret.centerToFront = ret.wheelbase * 0.41
       ret.steerRatio = 16.0   # 12.3 is spec end-to-end
+      ret.syncID = 342
       tire_stiffness_factor = 0.677
       ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
       ret.longitudinalKpBP = [0., 5., 35.]
@@ -319,6 +322,7 @@ class CarInterface(object):
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.18, 0.12]
+      ret.syncID = 342
 
     elif candidate == CAR.RIDGELINE:
       stop_and_go = False
@@ -332,7 +336,8 @@ class CarInterface(object):
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.18, 0.12]
-
+      ret.syncID = 342
+ 
     else:
       raise ValueError("unsupported car %s" % candidate)
 
