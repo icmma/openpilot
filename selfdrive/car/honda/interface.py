@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import numpy as np
-from cereal import car, log
+from cereal import car
 from common.numpy_fast import clip, interp
 from common.realtime import sec_since_boot
 from selfdrive.swaglog import cloudlog
@@ -151,10 +151,13 @@ class CarInterface(object):
       ret.safetyModel = car.CarParams.SafetyModels.hondaBosch
       ret.enableCamera = True
       ret.radarOffCan = True
+      ret.openpilotLongitudinalControl = False
     else:
       ret.safetyModel = car.CarParams.SafetyModels.honda
       ret.enableCamera = not any(x for x in CAMERA_MSGS if x in fingerprint)
       ret.enableGasInterceptor = 0x201 in fingerprint
+      ret.openpilotLongitudinalControl = ret.enableCamera
+
     cloudlog.warn("ECU Camera Simulated: %r", ret.enableCamera)
     cloudlog.warn("ECU Gas Interceptor: %r", ret.enableGasInterceptor)
 
@@ -183,8 +186,12 @@ class CarInterface(object):
     ret.steerKiBP, ret.steerKpBP = [[0.], [0.]]
 
     ret.steerKf = 0.00006 # conservative feed-forward
+    ret.steerReactance = 1.0
+    ret.steerInductance = 1.0
+    ret.steerResistance = 1.0
+    ret.eonToFront = 0.5
 
-    if candidate == CAR.CIVIC:
+    if candidate in [CAR.CIVIC, CAR.CIVIC_BOSCH]:
       stop_and_go = True
       ret.mass = mass_civic
       ret.wheelbase = wheelbase_civic
@@ -193,26 +200,19 @@ class CarInterface(object):
       tire_stiffness_factor = 1.
       # Civic at comma has modified steering FW, so different tuning for the Neo in that car
       is_fw_modified = os.getenv("DONGLE_ID") in ['99c94dc769b5d96e']
-      ret.steerKpV, ret.steerKiV = [[0.33], [0.10]] if is_fw_modified else [[0.8], [0.24]]
+      ret.steerKpV, ret.steerKiV = [[0.4], [0.12]] if is_fw_modified else [[0.6], [0.18]]
+      ret.steerReactance = 0.3
+      ret.steerInductance =  0.9
+      ret.steerResistance = 1.0
+      ret.eonToFront = 0.0
+      ret.syncID = 330
       if is_fw_modified:
-        ret.steerKf = 0.00003
+        tire_stiffness_factor = 0.9
+        ret.steerKf = 0.00004
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [3.6, 2.4, 1.5]
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.54, 0.36]
-
-    elif candidate == CAR.CIVIC_HATCH:
-      stop_and_go = True
-      ret.mass = 2916. * CV.LB_TO_KG + std_cargo
-      ret.wheelbase = wheelbase_civic
-      ret.centerToFront = centerToFront_civic
-      ret.steerRatio = 14.63  # 10.93 is spec end-to-end
-      tire_stiffness_factor = 1.
-      ret.steerKpV, ret.steerKiV = [[0.8], [0.24]]
-      ret.longitudinalKpBP = [0., 5., 35.]
-      ret.longitudinalKpV = [1.2, 0.8, 0.5]
-      ret.longitudinalKiBP = [0., 35.]
-      ret.longitudinalKiV = [0.18, 0.12]
 
     elif candidate in (CAR.ACCORD, CAR.ACCORD_15, CAR.ACCORDH):
       stop_and_go = True
@@ -223,6 +223,11 @@ class CarInterface(object):
       ret.centerToFront = ret.wheelbase * 0.39
       ret.steerRatio = 15.96  # 11.82 is spec end-to-end
       tire_stiffness_factor = 0.8467
+      ret.steerReactance = 1.75
+      ret.steerInductance = 2.25
+      ret.steerResistance = 0.5
+      ret.eonToFront = 1.0
+      ret.syncID = 330
       ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
@@ -236,11 +241,11 @@ class CarInterface(object):
       ret.centerToFront = ret.wheelbase * 0.37
       ret.steerRatio = 18.61  # 15.3 is spec end-to-end
       tire_stiffness_factor = 0.72
-      # Acura at comma has modified steering FW, so different tuning for the Neo in that car
-      is_fw_modified = os.getenv("DONGLE_ID") in ['ff83f397542ab647']
-      ret.steerKpV, ret.steerKiV = [[0.45], [0.00]] if is_fw_modified else [[0.8], [0.24]]
-      if is_fw_modified:
-        ret.steerKf = 0.00003
+      ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
+      ret.steerReactance = 0.3
+      ret.steerInductance =  0.9
+      ret.steerResistance = 1.0
+      ret.eonToFront = 0.0
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
@@ -253,7 +258,12 @@ class CarInterface(object):
       ret.centerToFront = ret.wheelbase * 0.41
       ret.steerRatio = 15.3         # as spec
       tire_stiffness_factor = 0.444 # not optimized yet
-      ret.steerKpV, ret.steerKiV = [[0.8], [0.24]]
+      ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
+      ret.steerReactance = 0.6
+      ret.steerInductance =  1.0
+      ret.steerResistance = 0.5
+      ret.eonToFront = 0.0
+      ret.syncID = 330
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
@@ -266,6 +276,7 @@ class CarInterface(object):
       ret.wheelbase = 2.66
       ret.centerToFront = ret.wheelbase * 0.41
       ret.steerRatio = 16.0   # 12.3 is spec end-to-end
+      ret.syncID = 342
       tire_stiffness_factor = 0.677
       ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
       ret.longitudinalKpBP = [0., 5., 35.]
@@ -280,7 +291,7 @@ class CarInterface(object):
       ret.centerToFront = ret.wheelbase * 0.38
       ret.steerRatio = 15.0         # as spec
       tire_stiffness_factor = 0.444 # not optimized yet
-      ret.steerKpV, ret.steerKiV = [[0.8], [0.24]]
+      ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
@@ -311,6 +322,7 @@ class CarInterface(object):
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.18, 0.12]
+      ret.syncID = 342
 
     elif candidate == CAR.RIDGELINE:
       stop_and_go = False
@@ -324,7 +336,8 @@ class CarInterface(object):
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.18, 0.12]
-
+      ret.syncID = 342
+ 
     else:
       raise ValueError("unsupported car %s" % candidate)
 
@@ -379,9 +392,8 @@ class CarInterface(object):
     # ******************* do can recv *******************
     canMonoTimes = []
 
-    self.cp.update(int(sec_since_boot() * 1e9), False)
+    self.cp.update(int(sec_since_boot() * 1e9), True)
     self.cp_cam.update(int(sec_since_boot() * 1e9), False)
-
     self.CS.update(self.cp, self.cp_cam)
 
     # create message
@@ -485,8 +497,8 @@ class CarInterface(object):
     ret.buttonEvents = buttonEvents
 
     # events
-    # TODO: I don't like the way capnp does enums
-    # These strings aren't checked at compile time
+    # TODO: event names aren't checked at compile time.
+    # Maybe there is a way to use capnp enums directly
     events = []
     if not self.CS.can_valid:
       self.can_invalid_count += 1
@@ -494,12 +506,18 @@ class CarInterface(object):
         events.append(create_event('commIssue', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE]))
     else:
       self.can_invalid_count = 0
+
+    if self.frame % 10000 == 0:
+      print("   steer frames skipped: %d   steer frames reused: %d" %(self.CS.steer_frame_skipped, self.CS.steer_frame_reused))
+
     if not self.CS.cam_can_valid and self.CP.enableCamera:
       self.cam_can_invalid_count += 1
-      if self.cam_can_invalid_count >= 5 and self.CS.CP.carFingerprint not in HONDA_BOSCH:
+      # wait 1.0s before throwing the alert to avoid it popping when you turn off the car
+      if self.cam_can_invalid_count >= 100 and self.CS.CP.carFingerprint not in HONDA_BOSCH:
         events.append(create_event('invalidGiraffeHonda', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE, ET.PERMANENT]))
     else:
       self.cam_can_invalid_count = 0
+
     if self.CS.steer_error:
       events.append(create_event('steerUnavailable', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE, ET.PERMANENT]))
     elif self.CS.steer_warning:
@@ -585,7 +603,7 @@ class CarInterface(object):
 
   # pass in a car.CarControl
   # to be called @ 100hz
-  def apply(self, c, perception_state=log.Live20Data.new_message()):
+  def apply(self, c):
     if c.hudControl.speedVisible:
       hud_v_cruise = c.hudControl.setSpeed * CV.MS_TO_KPH
     else:
@@ -594,19 +612,19 @@ class CarInterface(object):
     hud_alert = VISUAL_HUD[c.hudControl.visualAlert.raw]
     snd_beep, snd_chime = AUDIO_HUD[c.hudControl.audibleAlert.raw]
 
-    pcm_accel = int(clip(c.cruiseControl.accelOverride,0,1)*0xc6)
+    pcm_accel = int(clip(c.cruiseControl.accelOverride, 0, 1) * 0xc6)
 
-    self.CC.update(self.sendcan, c.enabled, self.CS, self.frame, \
-      c.actuators, \
-      c.cruiseControl.speedOverride, \
-      c.cruiseControl.override, \
-      c.cruiseControl.cancel, \
-      pcm_accel, \
-      perception_state.radarErrors, \
-      hud_v_cruise, c.hudControl.lanesVisible, \
-      hud_show_car = c.hudControl.leadVisible, \
-      hud_alert = hud_alert, \
-      snd_beep = snd_beep, \
-      snd_chime = snd_chime)
+    self.CC.update(self.sendcan, c.enabled, self.CS, self.frame,
+                   c.actuators,
+                   c.cruiseControl.speedOverride,
+                   c.cruiseControl.override,
+                   c.cruiseControl.cancel,
+                   pcm_accel,
+                   hud_v_cruise,
+                   c.hudControl.lanesVisible,
+                   hud_show_car=c.hudControl.leadVisible,
+                   hud_alert=hud_alert,
+                   snd_beep=snd_beep,
+                   snd_chime=snd_chime)
 
     self.frame += 1

@@ -5,7 +5,7 @@ from selfdrive.config import Conversions as CV
 from selfdrive.can.parser import CANParser
 from selfdrive.car.gm.values import DBC, CAR, parse_gear_shifter, \
                                     CruiseButtons, is_eps_status_ok, \
-                                    STEER_THRESHOLD
+                                    STEER_THRESHOLD, SUPERCRUISE_CARS
 
 def get_powertrain_can_parser(CP, canbus):
   # this function generates lists for signal, messages and initial values
@@ -31,23 +31,27 @@ def get_powertrain_can_parser(CP, canbus):
     ("LKATorqueDeliveredStatus", "PSCMStatus", 0),
   ]
 
-  if CP.carFingerprint in (CAR.VOLT, CAR.MALIBU):
+  if CP.carFingerprint == CAR.VOLT:
     signals += [
       ("RegenPaddle", "EBCMRegenPaddle", 0),
+    ]
+  if CP.carFingerprint in SUPERCRUISE_CARS:
+    signals += [
+      ("ACCCmdActive", "ASCMActiveCruiseControlStatus", 0)
+    ]
+  else:
+    signals += [
       ("TractionControlOn", "ESPStatus", 0),
       ("EPBClosed", "EPBStatus", 0),
       ("CruiseMainOn", "ECMEngineStatus", 0),
       ("CruiseState", "AcceleratorPedal2", 0),
-    ]
-  elif CP.carFingerprint == CAR.CADILLAC_CT6:
-    signals += [
-      ("ACCCmdActive", "ASCMActiveCruiseControlStatus", 0)
     ]
 
   return CANParser(DBC[CP.carFingerprint]['pt'], signals, [], canbus.powertrain)
 
 class CarState(object):
   def __init__(self, CP, canbus):
+    self.CP = CP
     # initialize can parser
 
     self.car_fingerprint = CP.carFingerprint
@@ -117,20 +121,23 @@ class CarState(object):
     self.left_blinker_on = pt_cp.vl["BCMTurnSignals"]['TurnSignals'] == 1
     self.right_blinker_on = pt_cp.vl["BCMTurnSignals"]['TurnSignals'] == 2
 
-    if self.car_fingerprint in (CAR.VOLT, CAR.MALIBU):
-      self.park_brake = pt_cp.vl["EPBStatus"]['EPBClosed']
-      self.main_on = pt_cp.vl["ECMEngineStatus"]['CruiseMainOn']
-      self.acc_active = False
-      self.esp_disabled = pt_cp.vl["ESPStatus"]['TractionControlOn'] != 1
-      self.regen_pressed = bool(pt_cp.vl["EBCMRegenPaddle"]['RegenPaddle'])
-      self.pcm_acc_status = pt_cp.vl["AcceleratorPedal2"]['CruiseState']
-    else:
+    if self.car_fingerprint in SUPERCRUISE_CARS:
       self.park_brake = False
       self.main_on = False
       self.acc_active = pt_cp.vl["ASCMActiveCruiseControlStatus"]['ACCCmdActive']
       self.esp_disabled = False
       self.regen_pressed = False
       self.pcm_acc_status = int(self.acc_active)
+    else:
+      self.park_brake = pt_cp.vl["EPBStatus"]['EPBClosed']
+      self.main_on = pt_cp.vl["ECMEngineStatus"]['CruiseMainOn']
+      self.acc_active = False
+      self.esp_disabled = pt_cp.vl["ESPStatus"]['TractionControlOn'] != 1
+      self.pcm_acc_status = pt_cp.vl["AcceleratorPedal2"]['CruiseState']
+      if self.car_fingerprint == CAR.VOLT:
+        self.regen_pressed = bool(pt_cp.vl["EBCMRegenPaddle"]['RegenPaddle'])
+      else:
+        self.regen_pressed = False
 
     # Brake pedal's potentiometer returns near-zero reading
     # even when pedal is not pressed.

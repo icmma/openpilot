@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from common.realtime import sec_since_boot
-from cereal import car, log
+from cereal import car
 from selfdrive.swaglog import cloudlog
 from selfdrive.config import Conversions as CV
 from selfdrive.controls.lib.drive_helpers import EventTypes as ET, create_event
@@ -77,6 +77,10 @@ class CarInterface(object):
     ret.steerKf = 1. / MAX_ANGLE   # MAX Steer angle to normalize FF
     ret.steerActuatorDelay = 0.1  # Default delay, not measured yet
     ret.steerRateCost = 1.0
+    ret.steerReactance = 0.7
+    ret.steerInductance = 1.0
+    ret.steerResistance = 1.0
+    ret.eonToFront = 0.5
 
     f = 1.2
     tireStiffnessFront_civic *= f
@@ -119,6 +123,7 @@ class CarInterface(object):
     ret.brakeMaxV = [1., 0.8]
 
     ret.enableCamera = not any(x for x in [970, 973, 984] if x in fingerprint)
+    ret.openpilotLongitudinalControl = False
     cloudlog.warn("ECU Camera Simulated: %r", ret.enableCamera)
 
     ret.steerLimitAlert = False
@@ -209,7 +214,7 @@ class CarInterface(object):
 
   # pass in a car.CarControl
   # to be called @ 100hz
-  def apply(self, c, perception_state=log.Live20Data.new_message()):
+  def apply(self, c):
 
     self.CC.update(self.sendcan, c.enabled, self.CS, self.frame, c.actuators,
                    c.hudControl.visualAlert, c.cruiseControl.cancel)
