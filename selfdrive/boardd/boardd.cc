@@ -233,7 +233,7 @@ bool can_recv(void *s, uint64_t blockWakeTime, bool forceSend) {
   if (blockWakeTime > curTime) {
     printf("     %lu   %lu    %lu   \n" , blockWakeTime, curTime, blockWakeTime - curTime);
     usleep(blockWakeTime - curTime);
-  } 
+  }
   do {
     err = libusb_bulk_transfer(dev_handle, 0x81, (uint8_t*)data, RECV_SIZE, &recv, TIMEOUT);
     if (err != 0) { handle_usb_issue(err, __func__); }
