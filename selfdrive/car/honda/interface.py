@@ -226,7 +226,7 @@ class CarInterface(object):
       ret.steerInductance = 2.25
       ret.steerResistance = 0.5
       ret.eonToFront = 1.0
-      ret.syncID = 330
+      #ret.syncID = 330
       ret.steerKpV, ret.steerKiV = [[0.6], [0.18]]
       ret.longitudinalKpBP = [0., 5., 35.]
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
@@ -389,7 +389,6 @@ class CarInterface(object):
 
     self.cp.update(int(sec_since_boot() * 1e9), True)
     self.cp_cam.update(int(sec_since_boot() * 1e9), False)
-
     self.CS.update(self.cp, self.cp_cam)
 
     # create message
@@ -502,6 +501,9 @@ class CarInterface(object):
         events.append(create_event('commIssue', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE]))
     else:
       self.can_invalid_count = 0
+
+    if self.frame % 10000 == 0:
+      print("   steer frames skipped: %d   steer frames reused: %d" %(self.CS.steer_frame_skipped, self.CS.steer_frame_reused))
 
     if not self.CS.cam_can_valid and self.CP.enableCamera:
       self.cam_can_invalid_count += 1

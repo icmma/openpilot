@@ -47,7 +47,7 @@ def data_sample(CI, CC, plan_sock, path_plan_sock, thermal, calibration, health,
   # Update carstate from CAN and create events
   CS = CI.update(CC)
   rk.keep_time(True)  # Run at 100Hz
-  print (sec_since_boot())
+  #print (sec_since_boot())
   events = list(CS.events)
   enabled = isEnabled(state)
 
@@ -461,7 +461,7 @@ def controlsd_thread(gctx=None, rate=100):
   path_plan = messaging.new_message()
   path_plan.init('pathPlan')
 
-  rk = Ratekeeper(rate, print_delay_threshold=2. / 1000)
+  rk = Ratekeeper(rate, print_delay_threshold=0.2 / 1000)
   controls_params = params.get("ControlsParams")
   # Read angle offset from previous drive
   if controls_params is not None:

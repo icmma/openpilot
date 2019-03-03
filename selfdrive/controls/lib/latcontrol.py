@@ -78,7 +78,7 @@ class LatControl(object):
 
     self.dash_file = open(DIR + '/dashboard_file_%d.csv' % self.filenumber, mode='w')
     self.dash_writer = csv.writer(self.dash_file, delimiter=',', quotechar='', quoting=csv.QUOTE_NONE)
-    self.dash_writer.writerow(['angle_steers_des','angle_steers_des_mpc','angle_steers','angle_rate','v_ego','steer_override',
+    self.dash_writer.writerow(['angle_steers_des_mpc','angle_steers_des','mpc_time','cur_time','angle_steers','angle_rate','v_ego','steer_override',
                     'p','i','f','ff_type_a','ff_type_r','sway','reactance',
                     'inductance','resistance','eonToFront','time'])
 
@@ -244,7 +244,7 @@ class LatControl(object):
                             str(round(v_ego, 1)),
                             1 if steer_override else 0,
                             str(round(self.pid.p, 4)),
-                            str(round(self.pid.i, 4)), 
+                            str(round(self.pid.i, 4)),
                             str(round(self.pid.f, 4)),
                             1 if ff_type == "a" else 0, 1 if ff_type == "r" else 0,
                             #str(round(path_plan.sway,2)),

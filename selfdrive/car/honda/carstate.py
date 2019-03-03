@@ -160,6 +160,8 @@ class CarState(object):
 
     self.stopped = 0
     self.steer_sensor_frame_prev = 0
+    self.steer_frame_skipped = 0
+    self.steer_frame_reused = 0
 
     # vEgo kalman filter
     dt = 0.01
@@ -243,7 +245,12 @@ class CarState(object):
     self.angle_steers_rate = cp.vl["STEERING_SENSORS"]['STEER_ANGLE_RATE']
     steer_sensor_frame = cp.vl["STEERING_SENSORS"]['COUNTER']
     if (steer_sensor_frame != (self.steer_sensor_frame_prev + 1) % 4):
+      if steer_sensor_frame == self.steer_sensor_frame_prev:
+        self.steer_frame_reused += 1
+      else:
+        self.steer_frame_skipped += 1
       print("     new_steer_frame %d   prev_steer_frame %d  at  %f2.4" % (steer_sensor_frame, self.steer_sensor_frame_prev, sec_since_boot()))
+    
     self.steer_sensor_frame_prev = steer_sensor_frame
 
     self.cruise_setting = cp.vl["SCM_BUTTONS"]['CRUISE_SETTING']
