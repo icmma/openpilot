@@ -11,7 +11,7 @@ import os, os.path
 
 _DT = 0.01    # 100Hz
 _DT_MPC = 0.05  # 20Hz
-_tuning_stage = 1
+_tuning_stage = 0
 
 
 def get_steer_max(CP, v_ego):
