@@ -46,8 +46,6 @@ def data_sample(CI, CC, plan_sock, path_plan_sock, thermal, calibration, health,
 
   # Update carstate from CAN and create events
   CS = CI.update(CC)
-  rk.keep_time(True)  # Run at 100Hz
-  #print (sec_since_boot())
   events = list(CS.events)
   enabled = isEnabled(state)
 
@@ -505,6 +503,7 @@ def controlsd_thread(gctx=None, rate=100):
                     v_cruise_kph_last, AM, rk, driver_status,
                     LaC, LoC, VM, angle_offset, passive, is_metric, cal_perc)
 
+    rk.keep_time(True)  # Run at 100Hz
     prof.checkpoint("State Control")
 
     # Publish data
@@ -512,7 +511,6 @@ def controlsd_thread(gctx=None, rate=100):
                    live100, AM, driver_status, LaC, LoC, angle_offset, passive, start_time, params, v_acc, a_acc)
     prof.checkpoint("Sent")
 
-    #rk.keep_time()  # Run at 100Hz
     prof.display()
 
 

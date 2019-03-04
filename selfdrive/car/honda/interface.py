@@ -337,7 +337,7 @@ class CarInterface(object):
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.18, 0.12]
       ret.syncID = 342
- 
+
     else:
       raise ValueError("unsupported car %s" % candidate)
 
@@ -507,7 +507,7 @@ class CarInterface(object):
     else:
       self.can_invalid_count = 0
 
-    if self.frame % 10000 == 0:
+    if self.frame % 1000 == 0:
       print("   steer frames skipped: %d   steer frames reused: %d" %(self.CS.steer_frame_skipped, self.CS.steer_frame_reused))
 
     if not self.CS.cam_can_valid and self.CP.enableCamera:
