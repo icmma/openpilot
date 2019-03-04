@@ -11,7 +11,7 @@ import os, os.path
 
 _DT = 0.01    # 100Hz
 _DT_MPC = 0.05  # 20Hz
-_tuning_stage = 0
+_tuning_stage = 1
 
 
 def get_steer_max(CP, v_ego):
@@ -41,10 +41,10 @@ class LatControl(object):
       self.ff_angle_factor = 1.0                                                     # Kf multiplier for angle-based feed forward
       self.ff_rate_factor = 10.0                                                      # Kf multiplier for rate-based feed forward
       # Eliminate break-points, since they aren't needed (and would cause problems for resonance)
-      KpV = [np.interp(25.0, CP.steerKpBP, CP.steerKpV)]
-      KiV = [np.interp(25.0, CP.steerKiBP, CP.steerKiV) * _DT / self.projection_factor]
-      self.pid = PIController(([0.], KpV),
-                              ([0.], KiV),
+      self.KpV = [np.interp(25.0, CP.steerKpBP, CP.steerKpV)]
+      self.KiV = [np.interp(25.0, CP.steerKiBP, CP.steerKiV)]
+      self.pid = PIController(([0.], self.KpV),
+                              ([0.], self.KiV),
                               k_f=CP.steerKf, pos_limit=1.0)
     else:
       self.pid = PIController((CP.steerKpBP, CP.steerKpV),
@@ -66,6 +66,9 @@ class LatControl(object):
     self.rough_steers_rate = 0.0
     self.prev_angle_steers = 0.0
     self.calculate_rate = True
+    self.resistanceIndex = 0
+    self.inductanceIndex = 0
+    self.reactanceIndex = 0
 
     # variables for dashboarding
     DIR = '/sdcard/tuning'
@@ -116,11 +119,13 @@ class LatControl(object):
 
   def roll_tune(self, CP, PL):
     self.mpc_frame += 1
+    '''
     sway_index = self.mpc_frame % 2000
     if sway_index < 90:
       PL.PP.sway = (self.sine_wave[sway_index * 2]) * 0.35
     elif 90 <= sway_index < 180:
       PL.PP.sway = -(self.sine_wave[(sway_index - 180) * 4]) * 0.45
+    '''
 
     if _tuning_stage == 1:
       if self.mpc_frame % 40 == 0:
