@@ -503,6 +503,7 @@ def controlsd_thread(gctx=None, rate=100):
                     v_cruise_kph_last, AM, rk, driver_status,
                     LaC, LoC, VM, angle_offset, passive, is_metric, cal_perc)
 
+    rk.keep_time(2. / 10000)   # use "soft" time keeping for data OUT to vehicle
     prof.checkpoint("State Control")
 
     # Publish data
@@ -510,7 +511,6 @@ def controlsd_thread(gctx=None, rate=100):
                    live100, AM, driver_status, LaC, LoC, angle_offset, passive, start_time, params, v_acc, a_acc)
     prof.checkpoint("Sent")
 
-    rk.keep_time()  # Run at 100Hz
     prof.display()
 
 
