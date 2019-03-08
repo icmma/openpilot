@@ -66,7 +66,8 @@ class PathPlanner(object):
     p_poly = libmpc_py.ffi.new("double[4]", list(self.MP.p_poly))
 
     # account for actuation delay AND interpolation
-    self.cur_state = calc_states_after_delay(self.cur_state, v_ego, angle_steers, curvature_factor, CP.steerRatio, CP.steerActuatorDelay + _DT_MPC)
+    projected_angle_steers = float(angle_steers) + CP.steerActuatorDelay * float(CS.carState.steeringRate)
+    self.cur_state = calc_states_after_delay(self.cur_state, v_ego, projected_angle_steers, curvature_factor, CP.steerRatio, CP.steerActuatorDelay + _DT_MPC)
 
     # reset to current steer angle if not active or overriding
     if active:
