@@ -1,34 +1,3 @@
-Version 0.5.9 (2019-02-10)
-========================
- * Improve calibration using a dedicated neural network
- * Abstract planner in its own process to remove lags in controls process
- * Improve speed limits with country/region defaults by road type
- * Reduce mapd data usage with gzip thanks to eFiniLan
- * Zip log files in the background to reduce disk usage
- * Kia Optima support thanks to emmertex!
- * Buick Regal 2018 support thanks to HOYS!
- * Comma pedal support for Toyota thanks to wocsor! Note: tuning needed and not maintained by comma
-
-Version 0.5.8 (2019-01-17)
-========================
- * Open sourced visiond
- * Auto-slowdown for upcoming turns
- * Chrysler/Jeep/Fiat support thanks to adhintz!
- * Honda Civic 2019 support thanks to csouers!
- * Improve use of car display in Toyota thanks to arne182!
- * No data upload when connected to Android or iOS hotspots and "Enable Upload Over Cellular" setting is off
- * EON stops charging when 12V battery drops below 11.8V
-
-Version 0.5.7 (2018-12-06)
-========================
- * Speed limit from OpenStreetMap added to UI
- * Highlight speed limit when speed exceeds road speed limit plus a delta
- * Option to limit openpilot max speed to road speed limit plus a delta
- * Cadillac ATS support thanks to vntarasov!
- * GMC Acadia support thanks to CryptoKylan!
- * Decrease GPU power consumption
- * NEOSv8 autoupdate
-
 Version 0.5.6 (2018-11-16)
 ========================
  * Refresh settings layout and add feature descriptions
@@ -38,7 +7,6 @@ Version 0.5.6 (2018-11-16)
  * More tuning to Honda positive accelerations
  * Reduce brake pump use on Hondas
  * Chevrolet Malibu support thanks to tylergets!
- * Holden Astra support thanks to AlexHill!
 
 Version 0.5.5 (2018-10-20)
 ========================

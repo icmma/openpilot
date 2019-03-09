@@ -187,10 +187,10 @@ struct SensorEventData {
     iOS @1;
     fiber @2;
     velodyne @3;  # Velodyne IMU
-    bno055 @4;    # Bosch accelerometer
-    lsm6ds3 @5;   # accelerometer (c2)
-    bmp280 @6;    # barometer (c2)
-    mmc3416x @7;  # magnetometer (c2)
+    # c3 sensors below
+    bno055 @4;
+    lsm6ds3 @5;
+    bmp280 @6;
   }
 }
 
@@ -276,8 +276,7 @@ struct ThermalData {
   startedTs @13 :UInt64;
 
   thermalStatus @14 :ThermalStatus;
-  chargingError @17 :Bool;
-  chargingDisabled @18 :Bool;
+  chargerDisabled @17 :Bool;
 
   enum ThermalStatus {
     green @0;   # all processes run
@@ -345,7 +344,6 @@ struct LiveCalibrationData {
   warpMatrix @0 :List(Float32);
   # camera_frame_from_model_frame
   warpMatrix2 @5 :List(Float32);
-  warpMatrixBig @6 :List(Float32);
   calStatus @1 :Int8;
   calCycle @2 :Int32;
   calPerc @3 :Int8;
@@ -374,7 +372,6 @@ struct Live100Data {
   l20MonoTimeDEPRECATED @17 :UInt64;
   mdMonoTimeDEPRECATED @18 :UInt64;
   planMonoTime @28 :UInt64;
-  pathPlanMonoTime @50 :UInt64;
 
   state @31 :ControlState;
   vEgo @0 :Float32;
@@ -400,9 +397,6 @@ struct Live100Data {
   curvature @37 :Float32;       # path curvature from vehicle model
   hudLeadDEPRECATED @14 :Int32;
   cumLagMs @15 :Float32;
-  startMonoTime @48 :UInt64;
-  mapValid @49 :Bool;
-  forceDecel @51 :Bool;
 
   enabled @19 :Bool;
   active @36 :Bool;
@@ -423,10 +417,6 @@ struct Live100Data {
   gpsPlannerActive @40 :Bool;
   engageable @41 :Bool;  # can OP be engaged?
   driverMonitoringOn @43 :Bool;
-
-  # maps
-  vCurvature @46 :Float32;
-  decelForTurn @47 :Bool;
 
   enum ControlState {
     disabled @0;
@@ -548,12 +538,12 @@ struct Plan {
   events @13 :List(Car.CarEvent);
 
   # lateral, 3rd order polynomial
-  lateralValidDEPRECATED @0 :Bool;
-  dPolyDEPRECATED @1 :List(Float32);
-  laneWidthDEPRECATED @11 :Float32;
+  lateralValid @0 :Bool;
+  dPoly @1 :List(Float32);
+  laneWidth @11 :Float32;
 
   # longitudinal
-  longitudinalValidDEPRECATED @2 :Bool;
+  longitudinalValid @2 :Bool;
   vCruise @16 :Float32;
   aCruise @17 :Float32;
   vTarget @3 :Float32;
@@ -562,14 +552,8 @@ struct Plan {
   aTargetMinDEPRECATED @4 :Float32;
   aTargetMaxDEPRECATED @5 :Float32;
   aTarget @18 :Float32;
-
-  vStart @26 :Float32;
-  aStart @27 :Float32;
-
   jerkFactor @6 :Float32;
   hasLead @7 :Bool;
-  hasLeftLaneDEPRECATED @23 :Bool;
-  hasRightLaneDEPRECATED @24 :Bool;
   fcw @8 :Bool;
   longitudinalPlanSource @15 :LongitudinalPlanSource;
 
@@ -577,12 +561,6 @@ struct Plan {
   gpsTrajectory @12 :GpsTrajectory;
 
   gpsPlannerActive @19 :Bool;
-
-  # maps
-  vCurvature @21 :Float32;
-  decelForTurn @22 :Bool;
-  mapValid @25 :Bool;
-
 
   struct GpsTrajectory {
     x @0 :List(Float32);
@@ -595,23 +573,6 @@ struct Plan {
     mpc2 @2;
     mpc3 @3;
   }
-}
-
-struct PathPlan {
-  laneWidth @0 :Float32;
-
-  dPoly @1 :List(Float32);
-  cPoly @2 :List(Float32);
-  cProb @3 :Float32;
-  lPoly @4 :List(Float32);
-  lProb @5 :Float32;
-  rPoly @6 :List(Float32);
-  rProb @7 :Float32;
-
-  angleSteers @8 :Float32;
-  valid @9 :Bool;
-  mpcAngles @10 :List(Float64);
-  mpcTimes @11 :List(Float64);
 }
 
 struct LiveLocationData {
@@ -1300,7 +1261,6 @@ struct UbloxGnss {
       carrierPhaseStdev @10 :Float32;
       # doppler standard deviation in Hz
       dopplerStdev @11 :Float32;
-      sigId @12 :UInt8;
 
       struct TrackingStatus {
         # pseudorange valid
@@ -1607,38 +1567,10 @@ struct LiveParametersData {
 }
 
 struct LiveMapData {
-  speedLimitValid @0 :Bool;
+  valid @0 :Bool;
   speedLimit @1 :Float32;
-  speedAdvisoryValid @12 :Bool;
-  speedAdvisory @13 :Float32;
-  speedLimitAheadValid @14 :Bool;
-  speedLimitAhead @15 :Float32;
-  speedLimitAheadDistance @16 :Float32;
-  curvatureValid @2 :Bool;
-  curvature @3 :Float32;
-  wayId @4 :UInt64;
-  roadX @5 :List(Float32);
-  roadY @6 :List(Float32);
-  lastGps @7: GpsLocationData;
-  roadCurvatureX @8 :List(Float32);
-  roadCurvature @9 :List(Float32);
-  distToTurn @10 :Float32;
-  mapValid @11 :Bool;
 }
 
-struct CameraOdometry {
-  trans @0 :List(Float32); # m/s in device frame
-  rot @1 :List(Float32); # rad/s in device frame
-  transStd @2 :List(Float32); # std m/s in device frame
-  rotStd @3 :List(Float32); # std rad/s in device frame
-}
-
-struct KalmanOdometry {
-  trans @0 :List(Float32); # m/s in device frame
-  rot @1 :List(Float32); # rad/s in device frame
-  transStd @2 :List(Float32); # std m/s in device frame
-  rotStd @3 :List(Float32); # std rad/s in device frame
-}
 
 struct Event {
   # in nanoseconds?
@@ -1707,8 +1639,5 @@ struct Event {
     boot @60 :Boot;
     liveParameters @61 :LiveParametersData;
     liveMapData @62 :LiveMapData;
-    cameraOdometry @63 :CameraOdometry;
-    pathPlan @64 :PathPlan;
-    kalmanOdometry @65 :KalmanOdometry;
   }
 }
