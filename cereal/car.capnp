@@ -244,6 +244,8 @@ struct CarControl {
     leadVisible @3: Bool;
     visualAlert @4: VisualAlert;
     audibleAlert @5: AudibleAlert;
+    rightLaneVisible @6: Bool;
+    leftLaneVisible @7: Bool;
 
     enum VisualAlert {
       # these are the choices from the Honda
@@ -353,8 +355,10 @@ struct CarParams {
   steerRateCost @40 :Float32; # Lateral MPC cost on steering rate
   steerControlType @46 :SteerControlType;
   radarOffCan @47 :Bool; # True when radar objects aren't visible on CAN
+  syncID @51  :Int16;  # SyncID is optional
 
   steerActuatorDelay @48 :Float32; # Steering wheel actuator delay in seconds
+  openpilotLongitudinalControl @50 :Bool; # is openpilot doing the longitudinal control?
 
   enum SteerControlType {
     torque @0;
