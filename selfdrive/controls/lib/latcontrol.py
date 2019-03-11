@@ -21,9 +21,7 @@ def apply_deadzone(angle, deadzone):
 
 class LatControl(object):
   def __init__(self, CP):
-    self.projection_factor = CP.steerInductance
-    self.response_time = CP.steerReactance
-    self.smooth_factor = CP.steerInductance / _DT
+    self.smooth_factor = CP.steerDampening * 100.
     self.ff_angle_factor = 1.0
     self.ff_rate_factor = 10.0
     self.dampened_angle_steers = 0.0
@@ -65,7 +63,7 @@ class LatControl(object):
       self.angle_steers_des = angle_steers
     else:
       # Interpolate desired angle between MPC updates
-      self.angle_steers_des = interp(sec_since_boot() + self.response_time, path_plan.mpcTimes, path_plan.mpcAngles)
+      self.angle_steers_des = interp(sec_since_boot() + CP.steerLatency, path_plan.mpcTimes, path_plan.mpcAngles)
 
       if CP.steerControlType == car.CarParams.SteerControlType.torque:
         steers_max = get_steer_max(CP, v_ego)
@@ -74,7 +72,7 @@ class LatControl(object):
         deadzone = 0
 
         desired_rate = self.angle_steers_des - float(angle_steers)
-        projected_angle_steers = float(angle_steers) + self.projection_factor * float(angle_rate)
+        projected_angle_steers = float(angle_steers) + CP.steerDampening * float(angle_rate)
         self.dampened_angle_steers = ((self.smooth_factor * self.dampened_angle_steers) + projected_angle_steers) / (1. + self.smooth_factor)
 
         angle_feed_forward = self.ff_angle_factor * apply_deadzone(self.angle_steers_des - float(angle_offset), 0.5)

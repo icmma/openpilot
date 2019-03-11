@@ -72,9 +72,9 @@ class CarInterface(object):
     rotationalInertia_civic = 2500
     tireStiffnessFront_civic = 192150
     tireStiffnessRear_civic = 202500
-    ret.steerReactance = 0.025
-    ret.steerInductance = 0.15
-    
+    ret.steerLatency = 0.025
+    ret.steerDampening = 0.15
+
     ret.steerKiBP, ret.steerKpBP = [[0.], [0.]]
     ret.steerActuatorDelay = 0.12  # Default delay, Prius has larger delay
 
