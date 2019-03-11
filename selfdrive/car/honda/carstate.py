@@ -238,14 +238,8 @@ class CarState(object):
       self.user_gas_pressed = self.user_gas > 0 # this works because interceptor read < 0 when pedal position is 0. Once calibrated, this will change
 
     self.gear = 0 if self.CP.carFingerprint == CAR.CIVIC else cp.vl["GEARBOX"]['GEAR']
-
+    self.angle_steers = cp.vl["STEERING_SENSORS"]['STEER_ANGLE']
     self.angle_steers_rate = cp.vl["STEERING_SENSORS"]['STEER_ANGLE_RATE']
-
-    if True == True:
-      projected_angle_steers = cp.vl["STEERING_SENSORS"]['STEER_ANGLE'] + self.angle_steers_rate * 0.8
-      self.angle_steers = (79.0 * self.angle_steers + projected_angle_steers) / 80.0
-    else:
-      self.angle_steers = cp.vl["STEERING_SENSORS"]['STEER_ANGLE']
 
     self.cruise_setting = cp.vl["SCM_BUTTONS"]['CRUISE_SETTING']
     self.cruise_buttons = cp.vl["SCM_BUTTONS"]['CRUISE_BUTTONS']

@@ -86,6 +86,9 @@ class CarInterface(object):
 
     ret.centerToFront = ret.wheelbase * 0.44
 
+    ret.steerReactance = 0.025
+    ret.steerInductance = 0.15
+
     ret.longPidDeadzoneBP = [0., 9.]
     ret.longPidDeadzoneV = [0., .15]
 

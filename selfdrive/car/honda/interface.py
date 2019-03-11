@@ -186,6 +186,8 @@ class CarInterface(object):
     ret.steerKiBP, ret.steerKpBP = [[0.], [0.]]
 
     ret.steerKf = 0.00006 # conservative feed-forward
+    ret.steerReactance = 0.025
+    ret.steerInductance = 0.15
 
     if candidate in [CAR.CIVIC, CAR.CIVIC_BOSCH]:
       stop_and_go = True
@@ -219,6 +221,9 @@ class CarInterface(object):
       ret.longitudinalKpV = [1.2, 0.8, 0.5]
       ret.longitudinalKiBP = [0., 35.]
       ret.longitudinalKiV = [0.18, 0.12]
+      ret.steerReactance = 0.025
+      ret.steerInductance = 0.15
+      
       # This is optional, and will cause boardd to synchnonize with the bus instead of time
       ret.syncID = 330
 

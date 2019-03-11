@@ -82,6 +82,9 @@ class CarInterface(object):
     tireStiffnessFront_civic *= f
     tireStiffnessRear_civic *= f
 
+    ret.steerReactance = 0.025
+    ret.steerInductance = 0.15
+
     ret.centerToFront = ret.wheelbase * 0.44
 
     ret.longPidDeadzoneBP = [0., 9.]
