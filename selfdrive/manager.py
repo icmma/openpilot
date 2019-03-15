@@ -41,9 +41,9 @@ def unblock_stdout():
     os._exit(os.wait()[1])
 
 if __name__ == "__main__":
-  if os.path.isfile("/init.qcom.rc") \
-      and (not os.path.isfile("/VERSION") or int(open("/VERSION").read()) < 6):
-
+  neos_update_required = os.path.isfile("/init.qcom.rc") \
+    and (not os.path.isfile("/VERSION") or int(open("/VERSION").read()) < 8)
+  if neos_update_required:
     # update continue.sh before updating NEOS
     if os.path.isfile(os.path.join(BASEDIR, "scripts", "continue.sh")):
       from shutil import copyfile
@@ -54,6 +54,9 @@ if __name__ == "__main__":
     subprocess.check_call(["git", "clean", "-xdf"], cwd=BASEDIR)
     os.system(os.path.join(BASEDIR, "installer", "updater", "updater"))
     raise Exception("NEOS outdated")
+  elif os.path.isdir("/data/neoupdate"):
+    from shutil import rmtree
+    rmtree("/data/neoupdate")
 
   unblock_stdout()
 
@@ -86,8 +89,10 @@ managed_processes = {
   "thermald": "selfdrive.thermald",
   "uploader": "selfdrive.loggerd.uploader",
   "controlsd": "selfdrive.controls.controlsd",
+  "plannerd": "selfdrive.controls.plannerd",
   "radard": "selfdrive.controls.radard",
   "ubloxd": "selfdrive.locationd.ubloxd",
+  "mapd": "selfdrive.mapd.mapd",
   "loggerd": ("selfdrive/loggerd", ["./loggerd"]),
   "logmessaged": "selfdrive.logmessaged",
   "tombstoned": "selfdrive.tombstoned",
@@ -100,7 +105,6 @@ managed_processes = {
   "visiond": ("selfdrive/visiond", ["./visiond"]),
   "sensord": ("selfdrive/sensord", ["./sensord"]),
   "gpsd": ("selfdrive/sensord", ["./gpsd"]),
-  "orbd": ("selfdrive/orbd", ["./orbd_wrapper.sh"]),
   "updated": "selfdrive.updated",
 }
 android_packages = ("ai.comma.plus.offroad", "ai.comma.plus.frame")
@@ -128,6 +132,7 @@ persistent_processes = [
 
 car_started_processes = [
   'controlsd',
+  'plannerd',
   'loggerd',
   'sensord',
   'radard',
@@ -135,7 +140,7 @@ car_started_processes = [
   'visiond',
   'proclogd',
   'ubloxd',
-  'orbd'
+  'mapd',
 ]
 
 def register_managed_process(name, desc, car_started=False):
@@ -447,6 +452,7 @@ def main():
     del managed_processes['proclogd']
   if os.getenv("NOCONTROL") is not None:
     del managed_processes['controlsd']
+    del managed_processes['plannerd']
     del managed_processes['radard']
 
   # support additional internal only extensions
@@ -474,6 +480,12 @@ def main():
     params.put("IsDriverMonitoringEnabled", "1")
   if params.get("IsGeofenceEnabled") is None:
     params.put("IsGeofenceEnabled", "-1")
+  if params.get("SpeedLimitOffset") is None:
+    params.put("SpeedLimitOffset", "0")
+  if params.get("LongitudinalControl") is None:
+    params.put("LongitudinalControl", "0")
+  if params.get("LimitSetSpeed") is None:
+    params.put("LimitSetSpeed", "0")
 
   # is this chffrplus?
   if os.getenv("PASSIVE") is not None:
