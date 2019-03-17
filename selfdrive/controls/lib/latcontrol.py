@@ -22,7 +22,7 @@ def apply_deadzone(angle, deadzone):
 class LatControl(object):
   def __init__(self, CP):
     self.smooth_factor = CP.steerDampening * 100.
-    self.ff_angle_factor = 5.0 #OG feed was 0.5
+    self.ff_angle_factor = 0.5 
     self.ff_rate_factor = 5.0
     self.dampened_angle_steers = 0.0
     # Eliminate break-points, since they aren't needed (and would cause problems for resonance)
