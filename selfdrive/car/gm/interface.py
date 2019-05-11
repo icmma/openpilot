@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-from cereal import car, log
+from cereal import car
 from common.realtime import sec_since_boot
 from selfdrive.config import Conversions as CV
 from selfdrive.controls.lib.drive_helpers import create_event, EventTypes as ET
 from selfdrive.controls.lib.vehicle_model import VehicleModel
-from selfdrive.car.gm.values import DBC, CAR, STOCK_CONTROL_MSGS, AUDIO_HUD
+from selfdrive.car.gm.values import DBC, CAR, STOCK_CONTROL_MSGS, AUDIO_HUD, SUPERCRUISE_CARS
 from selfdrive.car.gm.carstate import CarState, CruiseButtons, get_powertrain_can_parser
 
 try:
@@ -70,7 +70,7 @@ class CarInterface(object):
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
       ret.minEnableSpeed = 18 * CV.MPH_TO_MS
       # kg of standard extra cargo to count for driver, gas, etc...
-      ret.mass = 1607 + std_cargo
+      ret.mass = 1607. + std_cargo
       ret.safetyModel = car.CarParams.SafetyModels.gm
       ret.wheelbase = 2.69
       ret.steerRatio = 15.7
@@ -80,7 +80,7 @@ class CarInterface(object):
     elif candidate == CAR.MALIBU:
       # supports stop and go, but initial engage must be above 18mph (which include conservatism)
       ret.minEnableSpeed = 18 * CV.MPH_TO_MS
-      ret.mass = 1496 + std_cargo
+      ret.mass = 1496. + std_cargo
       ret.safetyModel = car.CarParams.SafetyModels.gm
       ret.wheelbase = 2.83
       ret.steerRatio = 15.8
@@ -89,7 +89,7 @@ class CarInterface(object):
 
     elif candidate == CAR.HOLDEN_ASTRA:
       # kg of standard extra cargo to count for driver, gas, etc...
-      ret.mass = 1363 + std_cargo
+      ret.mass = 1363. + std_cargo
       ret.wheelbase = 2.662
       # Remaining parameters copied from Volt for now
       ret.centerToFront = ret.wheelbase * 0.4
@@ -99,7 +99,7 @@ class CarInterface(object):
       ret.steerRatioRear = 0.
 
     elif candidate == CAR.ACADIA:
-      ret.minEnableSpeed = -1 # engage speed is decided by pcm
+      ret.minEnableSpeed = -1. # engage speed is decided by pcm
       ret.mass = 4353. * CV.LB_TO_KG + std_cargo
       ret.safetyModel = car.CarParams.SafetyModels.gm
       ret.wheelbase = 2.86
@@ -107,9 +107,18 @@ class CarInterface(object):
       ret.steerRatioRear = 0.
       ret.centerToFront = ret.wheelbase * 0.4
 
+    elif candidate == CAR.BUICK_REGAL:
+      ret.minEnableSpeed = 18 * CV.MPH_TO_MS
+      ret.mass = 3779. * CV.LB_TO_KG + std_cargo # (3849+3708)/2
+      ret.safetyModel = car.CarParams.SafetyModels.gm
+      ret.wheelbase = 2.83 #111.4 inches in meters
+      ret.steerRatio = 14.4 # guess for tourx
+      ret.steerRatioRear = 0.
+      ret.centerToFront = ret.wheelbase * 0.4 # guess for tourx
+
     elif candidate == CAR.CADILLAC_ATS:
       ret.minEnableSpeed = 18 * CV.MPH_TO_MS
-      ret.mass = 1601 + std_cargo
+      ret.mass = 1601. + std_cargo
       ret.safetyModel = car.CarParams.SafetyModels.gm
       ret.wheelbase = 2.78
       ret.steerRatio = 15.3
@@ -118,7 +127,7 @@ class CarInterface(object):
 
     elif candidate == CAR.CADILLAC_CT6:
       # engage speed is decided by pcm
-      ret.minEnableSpeed = -1
+      ret.minEnableSpeed = -1.
       # kg of standard extra cargo to count for driver, gas, etc...
       ret.mass = 4016. * CV.LB_TO_KG + std_cargo
       ret.safetyModel = car.CarParams.SafetyModels.cadillac
@@ -285,7 +294,13 @@ class CarInterface(object):
     if ret.seatbeltUnlatched:
       events.append(create_event('seatbeltNotLatched', [ET.NO_ENTRY, ET.SOFT_DISABLE]))
 
-    if self.CS.car_fingerprint in (CAR.VOLT, CAR.MALIBU, CAR.HOLDEN_ASTRA, CAR.ACADIA, CAR.CADILLAC_ATS):
+    if self.CS.car_fingerprint in SUPERCRUISE_CARS:
+      if self.CS.acc_active and not self.acc_active_prev:
+        events.append(create_event('pcmEnable', [ET.ENABLE]))
+      if not self.CS.acc_active:
+        events.append(create_event('pcmDisable', [ET.USER_DISABLE]))
+
+    else:
       if self.CS.brake_error:
         events.append(create_event('brakeUnavailable', [ET.NO_ENTRY, ET.IMMEDIATE_DISABLE, ET.PERMANENT]))
       if not self.CS.gear_shifter_valid:
@@ -318,13 +333,6 @@ class CarInterface(object):
         if b.type == "cancel" and b.pressed:
           events.append(create_event('buttonCancel', [ET.USER_DISABLE]))
 
-    if self.CS.car_fingerprint == CAR.CADILLAC_CT6:
-
-      if self.CS.acc_active and not self.acc_active_prev:
-        events.append(create_event('pcmEnable', [ET.ENABLE]))
-      if not self.CS.acc_active:
-        events.append(create_event('pcmDisable', [ET.USER_DISABLE]))
-
     ret.events = events
 
     # update previous brake/gas pressed
@@ -337,7 +345,7 @@ class CarInterface(object):
 
   # pass in a car.CarControl
   # to be called @ 100hz
-  def apply(self, c, perception_state=log.Live20Data.new_message()):
+  def apply(self, c):
     hud_v_cruise = c.hudControl.setSpeed
     if hud_v_cruise > 70:
       hud_v_cruise = 0
