@@ -6,7 +6,7 @@ from selfdrive.config import Conversions as CV
 from selfdrive.controls.lib.drive_helpers import EventTypes as ET, create_event
 from selfdrive.controls.lib.vehicle_model import VehicleModel
 from selfdrive.car.ford.carstate import CarState, get_can_parser
-from selfdrive.car.ford.fordcan import MAX_ANGLE
+from selfdrive.car.ford.values import MAX_ANGLE
 
 try:
   from selfdrive.car.ford.carcontroller import CarController
@@ -119,6 +119,7 @@ class CarInterface(object):
     ret.brakeMaxV = [1., 0.8]
 
     ret.enableCamera = not any(x for x in [970, 973, 984] if x in fingerprint)
+    ret.openpilotLongitudinalControl = False
     cloudlog.warn("ECU Camera Simulated: %r", ret.enableCamera)
 
     ret.steerLimitAlert = False
