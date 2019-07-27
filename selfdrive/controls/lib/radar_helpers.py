@@ -1,20 +1,21 @@
-import os
-import sys
-import platform
 import numpy as np
 
 from common.numpy_fast import clip, interp
 from common.kalman.simple_kalman import KF1D
+from selfdrive.car.tesla.readconfig import CarSettings
 
+_LEAD_ACCEL_TAU = 1.5
 NO_FUSION_SCORE = 100 # bad default fusion score
 
 # radar tracks
 SPEED, ACCEL = 0, 1   # Kalman filter states enum
 
-rate, ratev = 20., 20.    # model and radar are both at 20Hz
+rate, ratev = 20., 20.    # model and radar are both at 20Hz #BB changed to 10 from 20.
 ts = 1./rate
 freq_v_lat = 0.2 # Hz
 k_v_lat = 2*np.pi*freq_v_lat*ts / (1 + 2*np.pi*freq_v_lat*ts)
+
+
 
 freq_a_lead = .5 # Hz
 k_a_lead = 2*np.pi*freq_a_lead*ts / (1 + 2*np.pi*freq_a_lead*ts)
@@ -26,12 +27,13 @@ v_ego_stationary = 4.   # no stationary object flag below this speed
 
 # Lead Kalman Filter params
 _VLEAD_A = [[1.0, ts], [0.0, 1.0]]
-_VLEAD_C = [[1.0, 0.0]]
+_VLEAD_C = [1.0, 0.0]
 #_VLEAD_Q = np.matrix([[10., 0.0], [0.0, 100.]])
 #_VLEAD_R = 1e3
 #_VLEAD_K = np.matrix([[ 0.05705578], [ 0.03073241]])
 _VLEAD_K = [[ 0.1988689 ], [ 0.28555364]]
 
+RDR_TO_LDR = 2.7
 
 class Track(object):
   def __init__(self):
@@ -39,7 +41,7 @@ class Track(object):
     self.stationary = True
     self.initted = False
 
-  def update(self, d_rel, y_rel, v_rel, d_path, v_ego_t_aligned, measured, steer_override):
+  def update(self, d_rel, y_rel, v_rel,measured, a_rel, vy_rel, oClass, length, track_id,movingState, d_path, v_ego_t_aligned, steer_override,use_tesla_radar):
     if self.initted:
       # pylint: disable=access-member-before-definition
       self.dPathPrev = self.dPath
@@ -50,7 +52,13 @@ class Track(object):
     self.dRel = d_rel   # LONG_DIST
     self.yRel = y_rel   # -LAT_DIST
     self.vRel = v_rel   # REL_SPEED
+    self.aRel = a_rel   # rel acceleration
+    self.vLat = vy_rel  # rel lateral speed
+    self.oClass = oClass # object class
+    self.length = length #length
     self.measured = measured   # measured or estimate
+    self.track_id = track_id
+    #self.stationary = (movingState == 3)
 
     # compute distance to path
     self.dPath = d_path
@@ -60,23 +68,26 @@ class Track(object):
 
     if not self.initted:
       self.initted = True
+      self.aLeadTau = _LEAD_ACCEL_TAU
       self.cnt = 1
       self.vision_cnt = 0
       self.vision = False
-      self.aRel = 0.      # nidec gives no information about this
-      self.vLat = 0.
+      #self.aRel = 0.      # nidec gives no information about this
+      #self.vLat = 0.
+      self.track_id = track_id
       self.kf = KF1D([[self.vLead], [0.0]], _VLEAD_A, _VLEAD_C, _VLEAD_K)
     else:
       # estimate acceleration
       # TODO: use Kalman filter
-      a_rel_unfilt = (self.vRel - self.vRelPrev) / ts
-      a_rel_unfilt = clip(a_rel_unfilt, -10., 10.)
-      self.aRel = k_a_lead * a_rel_unfilt + (1 - k_a_lead) * self.aRel
+      if not use_tesla_radar:
+        a_rel_unfilt = (self.vRel - self.vRelPrev) / ts
+        a_rel_unfilt = clip(a_rel_unfilt, -10., 10.)
+        self.aRel = k_a_lead * a_rel_unfilt + (1 - k_a_lead) * self.aRel
 
-      # TODO: use Kalman filter
-      # neglect steer override cases as dPath is too noisy
-      v_lat_unfilt = 0. if steer_override else (self.dPath - self.dPathPrev) / ts
-      self.vLat = k_v_lat * v_lat_unfilt + (1 - k_v_lat) * self.vLat
+        # TODO: use Kalman filter
+        # neglect steer override cases as dPath is too noisy
+        v_lat_unfilt = 0. if steer_override else (self.dPath - self.dPathPrev) / ts
+        self.vLat = k_v_lat * v_lat_unfilt + (1 - k_v_lat) * self.vLat
 
       self.kf.update(self.vLead)
 
@@ -85,12 +96,18 @@ class Track(object):
     self.vLeadK = float(self.kf.x[SPEED][0])
     self.aLeadK = float(self.kf.x[ACCEL][0])
 
-    if self.stationary:
+    if self.stationary and (v_ego_t_aligned > v_ego_stationary): #0 is unknown for Tesla radar
       # stationary objects can become non stationary, but not the other way around
       self.stationary = v_ego_t_aligned > v_ego_stationary and abs(self.vLead) < v_stationary_thr
     self.oncoming = self.vLead < v_oncoming_thr
 
     self.vision_score = NO_FUSION_SCORE
+
+    # Learn if constant acceleration
+    if abs(self.aLeadK) < 0.5:
+      self.aLeadTau = _LEAD_ACCEL_TAU
+    else:
+      self.aLeadTau *= 0.9
 
   def update_vision_score(self, dist_to_vision, rel_speed_diff):
     # rel speed is very hard to estimate from vision
@@ -110,34 +127,21 @@ class Track(object):
     # Weigh y higher since radar is inaccurate in this dimension
     return [self.dRel, self.yRel*2, self.vRel]
 
-# ******************* Cluster *******************
+  def get_key_for_cluster_dy(self, dy):
+    # Weigh y higher since radar is inaccurate in this dimension
+    return [self.dRel, (self.yRel-dy)*2, self.vRel]
 
-if platform.machine() == 'aarch64':
-  for x in sys.path:
-    pp = os.path.join(x, "phonelibs/hierarchy/lib")
-    if os.path.isfile(os.path.join(pp, "_hierarchy.so")):
-      sys.path.append(pp)
-      break
-  import _hierarchy  #pylint: disable=import-error
-else:
-  from scipy.cluster import _hierarchy
-
-def fcluster(Z, t, criterion='inconsistent', depth=2, R=None, monocrit=None):
-  # supersimplified function to get fast clustering. Got it from scipy
-  Z = np.asarray(Z, order='c')
-  n = Z.shape[0] + 1
-  T = np.zeros((n,), dtype='i')
-  _hierarchy.cluster_dist(Z, T, float(t), int(n))
-  return T
-
-RDR_TO_LDR = 2.7
 
 def mean(l):
-  return sum(l)/len(l)
+  return sum(l) / len(l)
+
 
 class Cluster(object):
   def __init__(self):
     self.tracks = set()
+    #BB frame delay for dRel calculation, in seconds
+    self.frame_delay = 0.2
+    self.useTeslaRadar = CarSettings().get_value("useTeslaRadar")
 
   def add(self, t):
     # add the first track
@@ -146,7 +150,7 @@ class Cluster(object):
   # TODO: make generic
   @property
   def dRel(self):
-    return mean([t.dRel for t in self.tracks])
+    return min([t.dRel for t in self.tracks])
 
   @property
   def yRel(self):
@@ -181,6 +185,10 @@ class Cluster(object):
     return mean([t.aLeadK for t in self.tracks])
 
   @property
+  def aLeadTau(self):
+    return mean([t.aLeadTau for t in self.tracks])
+
+  @property
   def vision(self):
     return any([t.vision for t in self.tracks])
 
@@ -200,9 +208,24 @@ class Cluster(object):
   def oncoming(self):
     return all([t.oncoming for t in self.tracks])
 
-  def toLive20(self):
+  @property
+  def oClass(self):
+    return all([t.oClass for t in self.tracks])
+
+  @property
+  def length(self):
+    return max([t.length for t in self.tracks])
+  
+  @property
+  def track_id(self):
+    return mean([t.track_id for t in self.tracks])
+
+  def toRadarState(self):
+    dRel_delta_estimate = 0.
+    if self.useTeslaRadar:
+      dRel_delta_estimate = (self.vRel + self.aRel * self.frame_delay / 2.) * self.frame_delay
     return {
-      "dRel": float(self.dRel) - RDR_TO_LDR,
+      "dRel": float(self.dRel + dRel_delta_estimate) - RDR_TO_LDR,
       "yRel": float(self.yRel),
       "vRel": float(self.vRel),
       "aRel": float(self.aRel),
@@ -213,6 +236,10 @@ class Cluster(object):
       "aLeadK": float(self.aLeadK),
       "status": True,
       "fcw": self.is_potential_fcw(),
+      "aLeadTau": float(self.aLeadTau),
+      "oClass": int(self.oClass),
+      "length": float(self.length),
+      "trackId": int(self.track_id % 32),
     }
 
   def __str__(self):
@@ -245,19 +272,52 @@ class Cluster(object):
     t_lookahead = interp(self.dRel, t_lookahead_bp, t_lookahead_v)
 
     # correct d_path for lookahead time, considering only cut-ins and no more than 1m impact.
-    lat_corr = clip(t_lookahead * self.vLat, -1., 1.) if self.measured else 0.
+    lat_corr = 0. # BB disables for now : clip(t_lookahead * self.vLat, -1., 1.) if self.measured else 0.
 
     # consider only cut-ins
     d_path = clip(d_path + lat_corr, min(0., d_path), max(0.,d_path))
 
     return abs(d_path) < 1.5 and not self.stationary and not self.oncoming
 
-  def is_potential_lead2(self, lead_clusters):
+  def is_potential_lead_dy(self, v_ego,dy):
+    # predict cut-ins by extrapolating lateral speed by a lookahead time
+    # lookahead time depends on cut-in distance. more attentive for close cut-ins
+    # also, above 50 meters the predicted path isn't very reliable
+
+    # the distance at which v_lat matters is higher at higher speed
+    lookahead_dist = 40. + v_ego/1.2   #40m at 0mph, ~70m at 80mph
+
+    t_lookahead_v  = [1., 0.]
+    t_lookahead_bp = [10., lookahead_dist]
+
+    # average dist
+    d_path = self.dPath - dy
+
+    # lat_corr used to be gated on enabled, now always running
+    t_lookahead = interp(self.dRel, t_lookahead_bp, t_lookahead_v)
+
+    # correct d_path for lookahead time, considering only cut-ins and no more than 1m impact.
+    lat_corr = clip(t_lookahead * self.vLat, -1., 1.) if self.measured else 0.
+
+    # consider only cut-ins
+    d_path = clip(d_path + lat_corr, min(0., d_path), max(0.,d_path))
+
+    return abs(d_path) < abs(dy/2.)  and not self.stationary #and not self.oncoming
+
+  def is_truck(self,lead_clusters):
+    return False
     if len(lead_clusters) > 0:
       lead_cluster = lead_clusters[0]
       # check if the new lead is too close and roughly at the same speed of the first lead:
       # it might just be the second axle of the same vehicle
-      return (self.dRel - lead_cluster.dRel) > 8. or abs(self.vRel - lead_cluster.vRel) > 1.
+      return (self.dRel - lead_cluster.dRel < 4.5) and (self.dRel - lead_cluster.dRel > 0.5) and (abs(self.yRel - lead_cluster.yRel) < 2.) and (abs(self.vRel - lead_cluster.vRel) < 0.2)
+    else:
+      return False
+
+  def is_potential_lead2(self, lead_clusters):
+    if len(lead_clusters) > 0:
+      lead_cluster = lead_clusters[0]
+      return ((self.dRel - lead_cluster.dRel > 8.) and (lead_cluster.oClass > 0))  or ((self.dRel - lead_cluster.dRel > 15.) and (lead_cluster.oClass == 0)) or abs(self.vRel - lead_cluster.vRel) > 1.
     else:
       return False
 
