@@ -20,6 +20,7 @@ from common.params import Params
 from common.api import api_get
 from selfdrive.car.tesla.readconfig import read_config_file,CarSettings
 
+from upload_ftp import upload_to_ftp	
 
 fake_upload = os.getenv("FAKEUPLOAD") is not None
 
@@ -198,6 +199,7 @@ class Uploader(object):
 
     try:
       self.do_upload(key, fn)
+      upload_to_ftp(self.dongle_id, key, fn)	
     except Exception:
       pass
 
